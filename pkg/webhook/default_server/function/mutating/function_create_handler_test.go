@@ -22,6 +22,7 @@ import (
 
 var functionCreateHandler = FunctionCreateHandler{}
 
+// Test that an empty function gets all default values set
 func TestMutation(t *testing.T) {
 	g := gomega.NewGomegaWithT(t)
 
@@ -36,6 +37,7 @@ func TestMutation(t *testing.T) {
 	// mutate function
 	functionCreateHandler.mutatingFunctionFn(function)
 
+	// ensure defaults are set
 	g.Expect(function.Spec).To(gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
 		"Size":                gomega.BeEquivalentTo("S"),
 		"Timeout":             gomega.BeEquivalentTo(180),
@@ -44,6 +46,7 @@ func TestMutation(t *testing.T) {
 	}))
 }
 
+// Test that all values get validated
 func TestValidation(t *testing.T) {
 	g := gomega.NewWithT(t)
 
