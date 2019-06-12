@@ -2,8 +2,7 @@ package utils
 
 import (
 	"errors"
-
-	yaml "github.com/ghodss/yaml"
+	"github.com/ghodss/yaml"
 	corev1 "k8s.io/api/core/v1"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 )

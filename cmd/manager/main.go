@@ -20,6 +20,7 @@ import (
 	"flag"
 	"os"
 
+	buildv1alpha1 "github.com/knative/build/pkg/apis/build/v1alpha1"
 	servingv1alpha1 "github.com/knative/serving/pkg/apis/serving/v1alpha1"
 	"github.com/kyma-incubator/runtime/pkg/apis"
 	"github.com/kyma-incubator/runtime/pkg/controller"
@@ -65,6 +66,11 @@ func main() {
 
 	if err := servingv1alpha1.AddToScheme(mgr.GetScheme()); err != nil {
 		log.Error(err, "unable add Serving APIs to scheme")
+		os.Exit(1)
+	}
+
+	if err := buildv1alpha1.AddToScheme(mgr.GetScheme()); err != nil {
+		log.Error(err, "unable add Build APIs to scheme")
 		os.Exit(1)
 	}
 
