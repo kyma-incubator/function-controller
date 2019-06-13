@@ -44,7 +44,7 @@ spec:
       containers:
       - command:
         - /manager
-        image: runtime-controller:latest
+        image: ""
         imagePullPolicy: Always
         name: manager
         env:

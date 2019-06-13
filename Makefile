@@ -51,10 +51,10 @@ dep:
 # Build the docker image
 # docker-build: test
 .PHONY: docker-build
-docker-build:
+docker-build: dep fmt
 	docker build . -t ${IMG}
 	@echo "updating kustomize image patch file for manager resource"
-	sed -i'' -e 's@image: .*@image: '"${IMG}"'@' ./config/default/manager_image_patch.yaml
+	sed -i'' -e 's@image: .*@image: '"${IMG}"'@' ./config/default/manager_image_patch.yaml ./config/default/manager_image_patch_dev.yaml
 
 # Push the docker image
 .PHONY: docker-push

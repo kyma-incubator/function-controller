@@ -160,8 +160,7 @@ Then run the following commands:
 
 ```bash
 make install
-make docker-build
-make docker-push
+make docker-push IMG=<e.g. index.docker.io/nachtmaar/runtime-controller>
 make deploy
 ```
 
