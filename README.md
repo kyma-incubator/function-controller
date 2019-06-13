@@ -118,11 +118,17 @@ kubectl apply --filename https://github.com/knative/serving/releases/download/v0
    --filename https://raw.githubusercontent.com/knative/serving/v0.6.0/third_party/config/build/clusterrole.yaml
 ```
 
-modify `config/config.yaml` to include your docker.io credentials (base64 encoded) and update the dockerregistry value to your docker.io username
-
 ### Local Deployment
 
 #### Manager running locally
+
+modify config/config.yaml to include your docker.io credentials (base64 encoded) and update the dockerregistry value to your docker.io username
+
+Apply the configuration
+
+```bash
+kubectl apply -f config/config.yaml
+```
 
 Install the CRD to a local Kubernetes cluster:
 
@@ -161,12 +167,46 @@ make deploy
 
 ### Run the examples
 
+modify config/samples/config_sample.yaml to include your docker.io credentials (base64 encoded) and update the dockerregistry value to your docker.io username
+
+Apply the configuration
+
+```bash
+kubectl apply -f config/samples/config_sample.yaml
+```
+
+```bash
+make install
+```
+
+Run the controller on your machine:
+
+```bash
+make run
+```
+
+Create sample function
+
 ```bash
 kubectl apply -f config/samples/runtime_v1alpha1_function.yaml
+```
+
+search for function
+
+```bash
+kubectl get functions
+```
+
+```bash
+kubectl get function
+```
+
+```bash
+kubectl get fcn
 ```
 
 access the function
 
 ```bash
-curl -v -H "Host: $(kubectl get ksvc sample --no-headers | awk '{print $2}')" http://$(minikube ip):$(kubectl get svc istio-ingressgateway --namespace istio-system --output 'jsonpath={.spec.ports[?(@.port==80)].nodePort}')
+curl -v -H "Host: $(kubectl get ksvc sample --output 'jsonpath={.status.domain}')" http://$(minikube ip):$(kubectl get svc istio-ingressgateway --namespace istio-system --output 'jsonpath={.spec.ports[?(@.port==80)].nodePort}')
 ```
