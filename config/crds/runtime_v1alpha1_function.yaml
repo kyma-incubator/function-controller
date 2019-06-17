@@ -10,9 +10,6 @@ spec:
   names:
     kind: Function
     plural: functions
-    singular: function
-    shortNames:
-      - fcn
   scope: Namespaced
   validation:
     openAPIV3Schema:

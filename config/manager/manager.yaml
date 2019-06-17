@@ -54,6 +54,8 @@ spec:
                 fieldPath: metadata.namespace
           - name: SECRET_NAME
             value: $(WEBHOOK_SECRET_NAME)
+          - name: CONTROLLER_CONFIGMAP_NS
+            value: "runtime-system"
         resources:
           limits:
             cpu: 100m

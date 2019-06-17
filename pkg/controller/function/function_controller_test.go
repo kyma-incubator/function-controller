@@ -17,9 +17,6 @@ limitations under the License.
 package function
 
 import (
-	"os"
-	"testing"
-	"time"
 	runtimev1alpha1 "github.com/kyma-incubator/runtime/pkg/apis/runtime/v1alpha1"
 	"github.com/onsi/gomega"
 	"golang.org/x/net/context"
@@ -28,9 +25,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
+	"os"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"testing"
+	"time"
 )
 
 var c client.Client

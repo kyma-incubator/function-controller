@@ -82,6 +82,19 @@ rules:
   - update
   - patch
 - apiGroups:
+  - build.knative.dev
+  resources:
+  - buildtemplates
+  - builds
+  - services
+  verbs:
+  - create
+  - get
+  - delete
+  - list
+  - update
+  - patch
+- apiGroups:
   - admissionregistration.k8s.io
   resources:
   - mutatingwebhookconfigurations

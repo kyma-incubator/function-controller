@@ -90,7 +90,6 @@ var (
 	fnConfigNameEnv                                = os.Getenv("CONTROLLER_CONFIGMAP")
 	fnConfigNamespaceEnv                           = os.Getenv("CONTROLLER_CONFIGMAP_NS")
 	buildTemplateName                              = "function-kaniko"
-	buildTemplateNamespace                         = "default"
 	buildTemplateNameEnv                           = os.Getenv("BUILD_TEMPLATE")
 	buildTemplateNamespaceEnv                      = os.Getenv("BUILD_TEMPLATE_NS")
 	_                         reconcile.Reconciler = &ReconcileFunction{}
@@ -112,6 +111,7 @@ type ReconcileFunction struct {
 // +kubebuilder:rbac:groups="serving.knative.dev",resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list
 // +kubebuilder:rbac:groups=";apps;extensions",resources=deployments,verbs=create;get;delete;list;update;patch
+// +kubebuilder:rbac:groups="build.knative.dev",resources=buildtemplates;builds;services,verbs=create;get;delete;list;update;patch
 func (r *ReconcileFunction) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 
 	// Get Function Controller Configuration
@@ -292,9 +292,7 @@ func (r *ReconcileFunction) getFunctionBuildTemplate(rnInfo *runtimeUtil.Runtime
 		buildTemplateName = buildTemplateNameEnv
 	}
 
-	if len(buildTemplateNamespaceEnv) > 0 {
-		buildTemplateNamespace = buildTemplateNamespaceEnv
-	}
+	buildTemplateNamespace := fn.Namespace
 
 	deployBuildTemplate := &buildv1alpha1.BuildTemplate{
 		TypeMeta: metav1.TypeMeta{
@@ -319,10 +317,11 @@ func (r *ReconcileFunction) getFunctionBuildTemplate(rnInfo *runtimeUtil.Runtime
 		log.Info("Creating Knative BuildTemplate", "namespace", deployBuildTemplate.Namespace, "name", deployBuildTemplate.Name)
 		err = r.Create(context.TODO(), deployBuildTemplate)
 		if err != nil {
+			log.Error(err, "Error while try to Create Knative BuildTemplate", "namespace", deployBuildTemplate.Namespace, "name", deployBuildTemplate.Name)
 			return err
 		}
 	} else if err != nil {
-		log.Error(err, "Error while try to create Knative BuildTemplate", "namespace", deployBuildTemplate.Namespace, "name", deployBuildTemplate.Name)
+		log.Error(err, "Error while try to get Knative BuildTemplate", "namespace", deployBuildTemplate.Namespace, "name", deployBuildTemplate.Name)
 		return err
 	}
 
@@ -331,6 +330,7 @@ func (r *ReconcileFunction) getFunctionBuildTemplate(rnInfo *runtimeUtil.Runtime
 		log.Info("Updating Knative BuildTemplate", "namespace", deployBuildTemplate.Namespace, "name", deployBuildTemplate.Name)
 		err = r.Update(context.TODO(), foundBuildTemplate)
 		if err != nil {
+			log.Error(err, "Error while try to Update Knative BuildTemplate", "namespace", deployBuildTemplate.Namespace, "name", deployBuildTemplate.Name)
 			return err
 		}
 	}
