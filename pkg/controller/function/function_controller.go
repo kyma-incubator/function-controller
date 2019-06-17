@@ -109,9 +109,9 @@ type ReconcileFunction struct {
 // +kubebuilder:rbac:groups="runtime.kyma-project.io",resources=functions/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=mutatingwebhookconfigurations;validatingwebhookconfigurations,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="serving.knative.dev",resources=services,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="build.knative.dev",resources=builds;buildtemplates;clusterbuildtemplates;services,verbs=get;list;create;update;delete;patch;watch
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list
 // +kubebuilder:rbac:groups=";apps;extensions",resources=deployments,verbs=create;get;delete;list;update;patch
-// +kubebuilder:rbac:groups="build.knative.dev",resources=buildtemplates;builds;services,verbs=create;get;delete;list;update;patch
 func (r *ReconcileFunction) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 
 	// Get Function Controller Configuration
@@ -297,7 +297,7 @@ func (r *ReconcileFunction) getFunctionBuildTemplate(rnInfo *runtimeUtil.Runtime
 	deployBuildTemplate := &buildv1alpha1.BuildTemplate{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "build.knative.dev/v1alpha1",
-			Kind:       "Build",
+			Kind:       "BuildTemplate",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      buildTemplateName,

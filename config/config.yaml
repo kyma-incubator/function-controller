@@ -17,6 +17,7 @@ items:
     labels:
       function: runtime-function-controller
     name: dockerfile-nodejs-6
+    namespace: runtime-system
 - apiVersion: v1
   data:
     Dockerfile: |-
@@ -33,6 +34,7 @@ items:
     labels:
       function: runtime-function-controller
     name: dockerfile-nodejs-8
+    namespace: runtime-system
 - apiVersion: v1
   data:
     dockerRegistry: ### put your github name here e.g. k15r

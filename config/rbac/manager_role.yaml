@@ -62,6 +62,21 @@ rules:
   - patch
   - delete
 - apiGroups:
+  - build.knative.dev
+  resources:
+  - builds
+  - buildtemplates
+  - clusterbuildtemplates
+  - services
+  verbs:
+  - get
+  - list
+  - create
+  - update
+  - delete
+  - patch
+  - watch
+- apiGroups:
   - ""
   resources:
   - serviceaccounts
@@ -74,19 +89,6 @@ rules:
   - extensions
   resources:
   - deployments
-  verbs:
-  - create
-  - get
-  - delete
-  - list
-  - update
-  - patch
-- apiGroups:
-  - build.knative.dev
-  resources:
-  - buildtemplates
-  - builds
-  - services
   verbs:
   - create
   - get
