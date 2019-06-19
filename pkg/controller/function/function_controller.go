@@ -71,7 +71,6 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	if err != nil {
 		return err
 	}
-
 	// TODO(user): Modify this to be the types you create
 	// Uncomment watch a Deployment created by Function - change this for objects you create
 	// err = c.Watch(&source.Kind{Type: &corev1.ConfigMap{}}, &handler.EnqueueRequestForOwner{
@@ -86,14 +85,15 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 }
 
 var (
-	fnConfigName                                   = "fn-config"
-	fnConfigNamespace                              = "default"
-	fnConfigNameEnv                                = os.Getenv("CONTROLLER_CONFIGMAP")
-	fnConfigNamespaceEnv                           = os.Getenv("CONTROLLER_CONFIGMAP_NS")
-	buildTemplateName                              = "function-kaniko"
-	buildTemplateNameEnv                           = os.Getenv("BUILD_TEMPLATE")
-	buildTemplateNamespaceEnv                      = os.Getenv("BUILD_TEMPLATE_NS")
-	_                         reconcile.Reconciler = &ReconcileFunction{}
+	// name of function config
+	fnConfigName = getEnvDefault("CONTROLLER_CONFIGMAP", "fn-config")
+
+	// namespace of function config
+	fnConfigNamespace = getEnvDefault("CONTROLLER_CONFIGMAP_NS", "default")
+
+	// name of build-template
+	buildTemplateName                      = getEnvDefault("BUILD_TEMPLATE", "function-kaniko")
+	_                 reconcile.Reconciler = &ReconcileFunction{}
 )
 
 // ReconcileFunction is the controller.Reconciler implementation for Function objects
@@ -101,6 +101,15 @@ var (
 type ReconcileFunction struct {
 	client.Client
 	scheme *runtime.Scheme
+}
+
+func getEnvDefault(envName string, defaultValue string) string {
+	// use default value if environment variable is empty
+	var value string
+	if value = os.Getenv(envName); value == "" {
+		return defaultValue
+	}
+	return value
 }
 
 // Reconcile reads that state of the cluster for a Function object and makes changes based on the state read
@@ -177,14 +186,6 @@ func (r *ReconcileFunction) Reconcile(request reconcile.Request) (reconcile.Resu
 
 // Get Function Controller Configuration
 func (r *ReconcileFunction) getFunctionControllerConfiguration(fnConfig *corev1.ConfigMap) error {
-
-	if len(fnConfigNamespaceEnv) > 0 {
-		fnConfigNamespace = fnConfigNamespaceEnv
-	}
-
-	if len(fnConfigNameEnv) > 0 {
-		fnConfigName = fnConfigNameEnv
-	}
 
 	err := r.Get(context.TODO(), types.NamespacedName{Name: fnConfigName, Namespace: fnConfigNamespace}, fnConfig)
 	if err != nil {
@@ -293,10 +294,6 @@ func (r *ReconcileFunction) updateFunctionConfigMap(foundCm *corev1.ConfigMap, d
 }
 
 func (r *ReconcileFunction) getFunctionBuildTemplate(rnInfo *runtimeUtil.RuntimeInfo, fnConfig *corev1.ConfigMap, fn *runtimev1alpha1.Function, imageName string) error {
-
-	if len(buildTemplateNameEnv) > 0 {
-		buildTemplateName = buildTemplateNameEnv
-	}
 
 	buildTemplateNamespace := fn.Namespace
 
