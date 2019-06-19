@@ -17,20 +17,20 @@ limitations under the License.
 package function
 
 import (
+	"os"
+	"testing"
+	"time"
+
 	runtimev1alpha1 "github.com/kyma-incubator/runtime/pkg/apis/runtime/v1alpha1"
 	"github.com/onsi/gomega"
 	"golang.org/x/net/context"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
-	"os"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"testing"
-	"time"
 )
 
 var c client.Client
@@ -277,27 +277,19 @@ func TestReconcileErrors(t *testing.T) {
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 	c = mgr.GetClient()
 
-	// Create the Function object and expect the Reconcile and Deployment to be created
-	err = c.Create(context.TODO(), dockerFileConfigNodejs)
-	if apierrors.IsInvalid(err) {
-		t.Logf("failed to create object, got an invalid object error: %v", err)
-		return
-	}
+	// create the dockerfile config map
+	g.Expect(c.Create(context.TODO(), dockerFileConfigNodejs)).NotTo(gomega.HaveOccurred())
+	// create function config map
+	g.Expect(c.Create(context.TODO(), fnConfig)).NotTo(gomega.HaveOccurred())
+	// create the function
+	g.Expect(c.Create(context.TODO(), fnCreated)).NotTo(gomega.HaveOccurred())
 
-	err = c.Create(context.TODO(), fnConfig)
-	if apierrors.IsInvalid(err) {
-		t.Logf("failed to create object, got an invalid object error: %v", err)
-		return
-	}
-
-	err = c.Create(context.TODO(), fnCreated)
-	t.Logf("%+v", err)
-	g.Expect(err).NotTo(gomega.HaveOccurred())
+	// create reconcile request
 	request := reconcile.Request{
-		NamespacedName: types.NamespacedName{
-			Name:      "bla",
-			Namespace: "blabla",
-		},
+		// NamespacedName: types.NamespacedName{
+		// 	Name:      "bla",
+		// 	Namespace: "blabla",
+		// },
 	}
 	s := scheme.Scheme
 	s.AddKnownTypes(runtimev1alpha1.SchemeGroupVersion, fnCreated)
@@ -313,5 +305,77 @@ func TestReconcileErrors(t *testing.T) {
 	_, err = r.Reconcile(request)
 	g.Expect(err).To(gomega.HaveOccurred())
 	g.Expect(err.Error()).To(gomega.Equal(`ConfigMap "fn-config" not found`))
+}
 
+func TestGetFunctionControllerConfiguration(t *testing.T) {
+	g := gomega.NewGomegaWithT(t)
+	mgr, err := manager.New(cfg, manager.Options{})
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+	c = mgr.GetClient()
+
+	fnConfig := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "fn-config",
+			Namespace: "default",
+		},
+		Data: map[string]string{
+			"dockerRegistry":     "test",
+			"serviceAccountName": "build-bot",
+			"runtimes": `[
+				{
+					"ID": "nodejs8",
+					"DockerFileName": "dockerfile-nodejs8",
+				}
+			]`,
+		},
+	}
+
+	// create function config map
+	g.Expect(c.Create(context.TODO(), fnConfig)).NotTo(gomega.HaveOccurred())
+
+	s := scheme.Scheme
+	r := &ReconcileFunction{Client: c, scheme: s}
+	request := reconcile.Request{}
+
+	os.Unsetenv("CONTROLLER_CONFIGMAP")
+	os.Setenv("CONTROLLER_CONFIGMAP_NS", "stage")
+	_, err = r.Reconcile(request)
+	g.Expect(err).To(gomega.HaveOccurred())
+	g.Expect(err.Error()).To(gomega.Equal(`ConfigMap "fn-config" not found`))
+}
+
+func TestCreateFunctionHandlerMap(t *testing.T) {
+	g := gomega.NewGomegaWithT(t)
+	functionCode := "some function code"
+	functionDependecies := "some function dependencies"
+	function := runtimev1alpha1.Function{Spec: runtimev1alpha1.FunctionSpec{
+		Function: functionCode,
+		Deps: functionDependecies,
+	},
+	}
+	functionHandlerMap := createFunctionHandlerMap(&function)
+
+	mapx := map[string]string{
+		"handler":      "handler.main",
+		"handler.js":   functionCode,
+		"package.json": functionDependecies,
+	}
+	g.Expect(functionHandlerMap).To(gomega.Equal(mapx))
+}
+
+func TestCreateFunctionHandlerMapNoDependencies(t *testing.T) {
+	g := gomega.NewGomegaWithT(t)
+	functionCode := "some function code"
+	function := runtimev1alpha1.Function{Spec: runtimev1alpha1.FunctionSpec{
+		Function: functionCode,
+	},
+	}
+	functionHandlerMap := createFunctionHandlerMap(&function)
+
+	mapx := map[string]string{
+		"handler":      "handler.main",
+		"handler.js":   functionCode,
+		"package.json": "{}",
+	}
+	g.Expect(functionHandlerMap).To(gomega.Equal(mapx))
 }
