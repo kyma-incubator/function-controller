@@ -167,46 +167,28 @@ make deploy
 
 ### Run the examples
 
-modify config/samples/config_sample.yaml to include your docker.io credentials (base64 encoded) and update the dockerregistry value to your docker.io username
-
-Apply the configuration
-
-```bash
-kubectl apply -f config/samples/config_sample.yaml
-```
-
-```bash
-make install
-```
-
-Run the controller on your machine:
-
-```bash
-make run
-```
-
 Create sample function
 
 ```bash
-kubectl apply -f config/samples/runtime_v1alpha1_function.yaml
+kubectl apply -f config/samples/runtime_v1alpha1_function.yaml -n REPLACE_BY_NAMESPACE
 ```
 
 search for function
 
 ```bash
-kubectl get functions
+kubectl get functions -n REPLACE_BY_NAMESPACE
 ```
 
 ```bash
-kubectl get function
+kubectl get function -n REPLACE_BY_NAMESPACE
 ```
 
 ```bash
-kubectl get fcn
+kubectl get fcn -n REPLACE_BY_NAMESPACE
 ```
 
 access the function
 
 ```bash
-curl -v -H "Host: $(kubectl get ksvc sample --output 'jsonpath={.status.domain}')" http://$(minikube ip):$(kubectl get svc istio-ingressgateway --namespace istio-system --output 'jsonpath={.spec.ports[?(@.port==80)].nodePort}')
+	curl -v -H "Host: $(kubectl get ksvc sample --output 'jsonpath={.status.domain}' -n REPLACE_BY_NAMESPACE)" http://$(minikube ip):$(kubectl get svc istio-ingressgateway --namespace istio-system --output 'jsonpath={.spec.ports[?(@.port==80)].nodePort}')
 ```

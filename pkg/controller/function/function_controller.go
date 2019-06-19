@@ -41,6 +41,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"crypto/sha256"
+
 	runtimeUtil "github.com/kyma-incubator/runtime/pkg/utils"
 )
 
@@ -139,6 +140,7 @@ func (r *ReconcileFunction) Reconcile(request reconcile.Request) (reconcile.Resu
 	deployCm := &corev1.ConfigMap{}
 	if err := r.createFunctionConfigMap(foundCm, deployCm, fn); err != nil {
 		log.Error(err, "Error while try to create the Function's ConfigMap", "namespace", deployCm.Namespace, "name", deployCm.Name)
+
 		return reconcile.Result{}, err
 	}
 
@@ -162,6 +164,10 @@ func (r *ReconcileFunction) Reconcile(request reconcile.Request) (reconcile.Resu
 	}
 
 	if err := r.serveFunction(rnInfo, foundCm, fn, imageName); err != nil {
+		return reconcile.Result{}, err
+	}
+
+	if err := r.getFunctionCondition(fn); err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -409,6 +415,73 @@ func (r *ReconcileFunction) serveFunction(rnInfo *runtimeUtil.RuntimeInfo, found
 		if err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func (r *ReconcileFunction) getFunctionCondition(fn *runtimev1alpha1.Function) error {
+	var condition runtimev1alpha1.FunctionCondition
+	var errorRtn error
+
+	// get Knative Service
+	foundService := &servingv1alpha1.Service{}
+	err := r.Get(context.TODO(), types.NamespacedName{Name: fn.Name, Namespace: fn.Namespace}, foundService)
+	if err != nil {
+		log.Error(err, "Error while try to get Function Condition", "namespace", fn.Namespace, "name", fn.Name)
+		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionError)
+		if err != nil {
+			return err
+		}
+
+	}
+
+	errorRtn = nil
+	//ServiceConditionRoutesReady
+	//ServiceConditionReady
+	//ServiceConditionConfigurationsReady
+	if len(foundService.Status.Conditions) > 0 {
+		conditions := foundService.Status.Conditions
+		for _, cond := range conditions {
+			if cond.Status == corev1.ConditionTrue && cond.Type == servingv1alpha1.ServiceConditionRoutesReady {
+
+				condition = runtimev1alpha1.FunctionConditionRunning
+
+			} else if cond.Status == corev1.ConditionUnknown {
+
+				condition = runtimev1alpha1.FunctionConditionDeploying
+				errorRtn = fmt.Errorf("function Condition %s: ", condition)
+
+			} else {
+
+				condition = runtimev1alpha1.FunctionConditionError
+				errorRtn = fmt.Errorf("function Condition %s: ", condition)
+
+			}
+		}
+	}
+
+	err = r.updateFunctionStatus(fn, condition)
+	if err != nil {
+		return err
+	}
+
+	log.Info(fmt.Sprintf("Function status: %s", condition), "namespace", fn.Namespace, "name", fn.Name)
+
+	if errorRtn != nil {
+		return errorRtn
+	}
+
+	return nil
+}
+
+// Update the status of a function instance JSONPath: .status.condition
+func (r *ReconcileFunction) updateFunctionStatus(fn *runtimev1alpha1.Function, condition runtimev1alpha1.FunctionCondition) error {
+
+	fn.Status.Condition = condition
+	err := r.Status().Update(context.TODO(), fn)
+	if err != nil {
+		return err
 	}
 
 	return nil

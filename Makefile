@@ -16,8 +16,8 @@ manager: generate fmt vet
 	go build -o bin/manager github.com/kyma-incubator/function-controller/cmd/manager
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
-run: generate fmt vet
-	go run ./cmd/manager/main.go
+#run: generate fmt vet
+#	go run ./cmd/manager/main.go
 
 # Install CRDs into a cluster
 install: 

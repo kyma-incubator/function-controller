@@ -56,6 +56,8 @@ spec:
             value: $(WEBHOOK_SECRET_NAME)
           - name: CONTROLLER_CONFIGMAP_NS
             value: "runtime-system"
+          - name: BUILD_TIMEOUT
+            value: "20"
         resources:
           limits:
             cpu: 100m

@@ -14,4 +14,5 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manager github.com/kyma
 FROM ubuntu:latest
 WORKDIR /
 COPY --from=builder /go/src/github.com/kyma-incubator/runtime/manager .
+# COPY --from=builder /go/ /go/
 ENTRYPOINT ["/manager"]

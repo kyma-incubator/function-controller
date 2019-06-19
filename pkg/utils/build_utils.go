@@ -61,7 +61,7 @@ func NewBuild(rnInfo *RuntimeInfo, fn *runtimev1alpha1.Function, imageName strin
 
 	timeout, err := time.ParseDuration(buildTimeout)
 	if err != nil {
-		timeout = 10 * time.Minute
+		timeout = 30 * time.Minute
 	}
 
 	return &Build{
