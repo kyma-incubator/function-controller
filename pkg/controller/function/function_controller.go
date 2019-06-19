@@ -124,7 +124,7 @@ func (r *ReconcileFunction) Reconcile(request reconcile.Request) (reconcile.Resu
 	// Get a new *RuntimeInfo
 	rnInfo, err := runtimeUtil.New(fnConfig)
 	if err != nil {
-		log.Error(err, "Error while try to get a new RuntimeInfo instance", "namespace", fnConfig.Namespace, "name", fnConfig.Name)
+		log.Error(err, "Error while trying to get a new RuntimeInfo instance", "namespace", fnConfig.Namespace, "name", fnConfig.Name)
 		return reconcile.Result{}, err
 	}
 
@@ -139,14 +139,14 @@ func (r *ReconcileFunction) Reconcile(request reconcile.Request) (reconcile.Resu
 	foundCm := &corev1.ConfigMap{}
 	deployCm := &corev1.ConfigMap{}
 	if err := r.createFunctionConfigMap(foundCm, deployCm, fn); err != nil {
-		log.Error(err, "Error while try to create the Function's ConfigMap", "namespace", deployCm.Namespace, "name", deployCm.Name)
+		log.Error(err, "Error while trying to create the Function's ConfigMap", "namespace", deployCm.Namespace, "name", deployCm.Name)
 
 		return reconcile.Result{}, err
 	}
 
 	// Update Function's ConfigMap
 	if err := r.updateFunctionConfigMap(foundCm, deployCm); err != nil {
-		log.Error(err, "Error while try to upadate Function's ConfigMap:", "namespace", deployCm.Namespace, "name", deployCm.Name)
+		log.Error(err, "Error while trying to update Function's ConfigMap:", "namespace", deployCm.Namespace, "name", deployCm.Name)
 		return reconcile.Result{}, err
 	}
 
@@ -323,11 +323,11 @@ func (r *ReconcileFunction) getFunctionBuildTemplate(rnInfo *runtimeUtil.Runtime
 		log.Info("Creating Knative BuildTemplate", "namespace", deployBuildTemplate.Namespace, "name", deployBuildTemplate.Name)
 		err = r.Create(context.TODO(), deployBuildTemplate)
 		if err != nil {
-			log.Error(err, "Error while try to Create Knative BuildTemplate", "namespace", deployBuildTemplate.Namespace, "name", deployBuildTemplate.Name)
+			log.Error(err, "Error while trying to Create Knative BuildTemplate", "namespace", deployBuildTemplate.Namespace, "name", deployBuildTemplate.Name)
 			return err
 		}
 	} else if err != nil {
-		log.Error(err, "Error while try to get Knative BuildTemplate", "namespace", deployBuildTemplate.Namespace, "name", deployBuildTemplate.Name)
+		log.Error(err, "Error while trying to get Knative BuildTemplate", "namespace", deployBuildTemplate.Namespace, "name", deployBuildTemplate.Name)
 		return err
 	}
 
@@ -336,7 +336,7 @@ func (r *ReconcileFunction) getFunctionBuildTemplate(rnInfo *runtimeUtil.Runtime
 		log.Info("Updating Knative BuildTemplate", "namespace", deployBuildTemplate.Namespace, "name", deployBuildTemplate.Name)
 		err = r.Update(context.TODO(), foundBuildTemplate)
 		if err != nil {
-			log.Error(err, "Error while try to Update Knative BuildTemplate", "namespace", deployBuildTemplate.Namespace, "name", deployBuildTemplate.Name)
+			log.Error(err, "Error while trying to Update Knative BuildTemplate", "namespace", deployBuildTemplate.Namespace, "name", deployBuildTemplate.Name)
 			return err
 		}
 	}
@@ -363,7 +363,7 @@ func (r *ReconcileFunction) buildFunctionImage(rnInfo *runtimeUtil.RuntimeInfo, 
 			return err
 		}
 	} else if err != nil {
-		log.Error(err, "Error while try to create Knative Build", "namespace", deployBuild.Namespace, "name", deployBuild.Name)
+		log.Error(err, "Error while trying to create Knative Build", "namespace", deployBuild.Namespace, "name", deployBuild.Name)
 		return err
 	}
 
@@ -404,7 +404,7 @@ func (r *ReconcileFunction) serveFunction(rnInfo *runtimeUtil.RuntimeInfo, found
 			return err
 		}
 	} else if err != nil {
-		log.Error(err, "Error while try to create Knative Service", "namespace", deployService.Namespace, "name", deployService.Name)
+		log.Error(err, "Error while trying to create Knative Service", "namespace", deployService.Namespace, "name", deployService.Name)
 		return err
 	}
 
@@ -428,7 +428,7 @@ func (r *ReconcileFunction) getFunctionCondition(fn *runtimev1alpha1.Function) e
 	foundService := &servingv1alpha1.Service{}
 	err := r.Get(context.TODO(), types.NamespacedName{Name: fn.Name, Namespace: fn.Namespace}, foundService)
 	if err != nil {
-		log.Error(err, "Error while try to get Function Condition", "namespace", fn.Namespace, "name", fn.Name)
+		log.Error(err, "Error while trying to get Function Condition", "namespace", fn.Namespace, "name", fn.Name)
 		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionError)
 		if err != nil {
 			return err
