@@ -23,6 +23,7 @@ import (
 	"sync"
 	"testing"
 
+	buildv1alpha1 "github.com/knative/build/pkg/apis/build/v1alpha1"
 	servingv1alpha1 "github.com/knative/serving/pkg/apis/serving/v1alpha1"
 	"github.com/kyma-incubator/runtime/pkg/apis"
 	"github.com/onsi/gomega"
@@ -31,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 )
 
 var cfg *rest.Config
@@ -40,6 +42,7 @@ func TestMain(m *testing.M) {
 		Config:            cfg,
 		CRDDirectoryPaths: []string{filepath.Join("..", "..", "..", "config", "crds")},
 	}
+	logf.SetLogger(logf.ZapLogger(false))
 	apis.AddToScheme(scheme.Scheme)
 
 	servingv1alpha1.SchemeBuilder.AddToScheme(scheme.Scheme)
@@ -72,10 +75,10 @@ func SetupTestReconcile(inner reconcile.Reconciler) (reconcile.Reconciler, chan 
 func StartTestManager(mgr manager.Manager, g *gomega.GomegaWithT) (chan struct{}, *sync.WaitGroup) {
 	stop := make(chan struct{})
 	wg := &sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
-		wg.Add(1)
+		defer wg.Done()
 		g.Expect(mgr.Start(stop)).NotTo(gomega.HaveOccurred())
-		wg.Done()
 	}()
 	return stop, wg
 }
