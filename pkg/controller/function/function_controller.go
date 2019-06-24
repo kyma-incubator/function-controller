@@ -123,6 +123,7 @@ func getEnvDefault(envName string, defaultValue string) string {
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list
 // +kubebuilder:rbac:groups=";apps;extensions",resources=deployments,verbs=create;get;delete;list;update;patch
 func (r *ReconcileFunction) Reconcile(request reconcile.Request) (reconcile.Result, error) {
+	fmt.Print("hello world")
 
 	// Get Function Controller Configuration
 	fnConfig := &corev1.ConfigMap{}
@@ -160,25 +161,34 @@ func (r *ReconcileFunction) Reconcile(request reconcile.Request) (reconcile.Resu
 	}
 
 	hash := sha256.New()
+	print("foundCM: %v", foundCm)
 	hash.Write([]byte(foundCm.Data["handler.js"] + foundCm.Data["package.json"]))
 	functionSha := fmt.Sprintf("%x", hash.Sum(nil))
 	imageName := fmt.Sprintf("%s/%s-%s:%s", rnInfo.RegistryInfo, fn.Namespace, fn.Name, functionSha)
 
+	log.Info("getFunctionBuildTemplate")
 	if err := r.getFunctionBuildTemplate(rnInfo, fnConfig, fn, imageName); err != nil {
 		return reconcile.Result{}, err
 	}
+	log.Info("getFunctionBuildTemplate [done]")
 
+	log.Info("buildFunctionImage")
 	if err := r.buildFunctionImage(rnInfo, fnConfig, fn, imageName); err != nil {
 		return reconcile.Result{}, err
 	}
+	log.Info("buildFunctionImage [done]")
 
+	log.Info("serveFunction")
 	if err := r.serveFunction(rnInfo, foundCm, fn, imageName); err != nil {
 		return reconcile.Result{}, err
 	}
+	log.Info("serveFunction [done]")
 
+	log.Info("getFunctionCondition")
 	if err := r.getFunctionCondition(fn); err != nil {
 		return reconcile.Result{}, err
 	}
+	log.Info("getFunctionCondition [done]")
 
 	return reconcile.Result{}, nil
 
@@ -273,6 +283,9 @@ func (r *ReconcileFunction) updateFunctionConfigMap(foundCm *corev1.ConfigMap, d
 
 	if !reflect.DeepEqual(deployCm.Data, foundCm.Data) {
 		foundCm.Data = deployCm.Data
+		// TODO: why is this required ??
+		foundCm.TypeMeta = deployCm.TypeMeta
+		foundCm.ObjectMeta = deployCm.ObjectMeta
 		log.Info("Updating Function's ConfigMap", "namespace", deployCm.Namespace, "name", deployCm.Name)
 		err := r.Update(context.TODO(), foundCm)
 		if err != nil {
@@ -323,6 +336,7 @@ func (r *ReconcileFunction) getFunctionBuildTemplate(rnInfo *runtimeUtil.Runtime
 			log.Error(err, "Error while trying to Create Knative BuildTemplate", "namespace", deployBuildTemplate.Namespace, "name", deployBuildTemplate.Name)
 			return err
 		}
+		return nil
 	} else if err != nil {
 		log.Error(err, "Error while trying to get Knative BuildTemplate", "namespace", deployBuildTemplate.Namespace, "name", deployBuildTemplate.Name)
 		return err
@@ -359,6 +373,7 @@ func (r *ReconcileFunction) buildFunctionImage(rnInfo *runtimeUtil.RuntimeInfo, 
 		if err != nil {
 			return err
 		}
+		return nil
 	} else if err != nil {
 		log.Error(err, "Error while trying to create Knative Build", "namespace", deployBuild.Namespace, "name", deployBuild.Name)
 		return err
