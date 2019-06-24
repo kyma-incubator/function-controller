@@ -433,6 +433,31 @@ func (r *ReconcileFunction) getFunctionCondition(fn *runtimev1alpha1.Function) e
 
 	}
 
+	// get Knative Build
+	foundBuild := &buildv1alpha1.Build{}
+	err = r.Get(context.TODO(), types.NamespacedName{Name: fn.Name, Namespace: fn.Namespace}, foundBuild)
+	if err != nil {
+		log.Error(err, "Error while trying to get Function Condition", "namespace", fn.Namespace, "name", fn.Name)
+		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionError)
+		if err != nil {
+			errorRtn = fmt.Errorf("function Condition (Build) %s: Reconcile will executed call again.", condition)
+		}
+
+	}
+
+	if len(foundBuild.Status.Conditions) > 0 {
+		conditions := foundBuild.Status.Conditions
+		for _, cond := range conditions {
+			if cond.Status == corev1.ConditionUnknown {
+
+				condition = runtimev1alpha1.FunctionConditionDeploying
+				errorRtn = fmt.Errorf("function Condition (Build) %s: Reconcile will executed call again.", condition)
+
+			}
+		}
+
+	}
+
 	errorRtn = nil
 	//ServiceConditionRoutesReady
 	//ServiceConditionReady
@@ -447,12 +472,12 @@ func (r *ReconcileFunction) getFunctionCondition(fn *runtimev1alpha1.Function) e
 			} else if cond.Status == corev1.ConditionUnknown {
 
 				condition = runtimev1alpha1.FunctionConditionDeploying
-				errorRtn = fmt.Errorf("function Condition %s: ", condition)
+				errorRtn = fmt.Errorf("function Condition (Serving) %s: . Reconcile will executed call again.", condition)
 
 			} else {
 
 				condition = runtimev1alpha1.FunctionConditionError
-				errorRtn = fmt.Errorf("function Condition %s: ", condition)
+				errorRtn = fmt.Errorf("function Condition (Serving) %s: Reconcile will executed call again.", condition)
 
 			}
 		}
@@ -463,11 +488,11 @@ func (r *ReconcileFunction) getFunctionCondition(fn *runtimev1alpha1.Function) e
 		return err
 	}
 
-	log.Info(fmt.Sprintf("Function status: %s", condition), "namespace", fn.Namespace, "name", fn.Name)
-
 	if errorRtn != nil {
 		return errorRtn
 	}
+
+	log.Info(fmt.Sprintf("Function status: %s", condition), "namespace", fn.Namespace, "name", fn.Name)
 
 	return nil
 }
