@@ -66,6 +66,7 @@ func GetServiceSpec(imageName string, fn runtimev1alpha1.Function, rnInfo *Runti
 			Name:  "FUNC_PORT",
 			Value: "8080",
 		},
+		// TODO: still required since we are not using kubeless anymore ?
 		{
 			Name:  "NODE_PATH",
 			Value: "$(KUBELESS_INSTALL_VOLUME)/node_modules",
