@@ -1,0 +1,23 @@
+# Source: https://github.com/knative/build/blob/38ace00371c775ef5e70f83f1ffbae0cfd6cf47d/config/300-buildtemplate.yaml
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: buildtemplates.build.knative.dev
+  labels:
+    knative.dev/crd-install: "true"
+spec:
+  group: build.knative.dev
+  version: v1alpha1
+  names:
+    kind: BuildTemplate
+    plural: buildtemplates
+    categories:
+    - all
+    - knative
+  scope: Namespaced
+  subresources:
+    status: {}
+  additionalPrinterColumns:
+  - name: Age
+    type: date
+    JSONPath: .metadata.creationTimestamp
