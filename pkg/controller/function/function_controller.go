@@ -415,6 +415,7 @@ func (r *ReconcileFunction) serveFunction(rnInfo *runtimeUtil.RuntimeInfo, found
 		if err != nil {
 			return err
 		}
+		return nil
 	} else if err != nil {
 		log.Error(err, "Error while trying to create Knative Service", "namespace", deployService.Namespace, "name", deployService.Name)
 		return err
