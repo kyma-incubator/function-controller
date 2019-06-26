@@ -121,27 +121,23 @@ func TestReconcile(t *testing.T) {
 		mgrStopped.Wait()
 	}()
 
-	// create configmap holding the Dockerfile
 	// create configmap which holds settings required by the function controller
 	g.Expect(c.Create(context.TODO(), fnConfig)).NotTo(gomega.HaveOccurred())
 	// create the actual function
 	g.Expect(c.Create(context.TODO(), fnCreated)).NotTo(gomega.HaveOccurred())
 
+	// call reconcile function
 	g.Eventually(requests, timeout).Should(gomega.Receive(gomega.Equal(expectedRequest)))
 
-	cm := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{Name: "foo", Namespace: "default"},
-	}
-
-	service := &servingv1alpha1.Service{
-		ObjectMeta: metav1.ObjectMeta{Name: "foo", Namespace: "default"},
-	}
-
 	// get config map
-	g.Eventually(func() error { return c.Get(context.TODO(), depKey, cm) }, timeout).
+	functionConfigMap := &corev1.ConfigMap{}
+	g.Eventually(func() error { return c.Get(context.TODO(), depKey, functionConfigMap) }, timeout).
 		Should(gomega.Succeed())
+	g.Expect(functionConfigMap.Data["handler.js"]).To(gomega.Equal(fnCreated.Spec.Function))
+	g.Expect(functionConfigMap.Data["package.json"]).To(gomega.Equal("{}"))
 
 	// get service
+	service := &servingv1alpha1.Service{}
 	g.Eventually(func() error { return c.Get(context.TODO(), depKey, service) }, timeout).
 		Should(gomega.Succeed())
 	g.Expect(service.Namespace).To(gomega.Equal("default"))
@@ -162,6 +158,7 @@ func TestReconcile(t *testing.T) {
 		Should(gomega.Succeed())
 
 	// ensure build template is correct
+	// parameters are available
 	// TODO: do not assume any order for parameters
 	g.Expect(buildTemplate.Spec.Parameters[0]).To(gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
 		"Name": gomega.BeEquivalentTo("IMAGE"),
@@ -170,23 +167,11 @@ func TestReconcile(t *testing.T) {
 		"Name": gomega.BeEquivalentTo("DOCKERFILE"),
 	}))
 	// TODO: ignore order
+	// ensure build template references correct config map
 	var configMapNameNodeJs6 = "dockerfile-nodejs-6"
 	var configMapNameNodeJs8 = "dockerfile-nodejs-8"
 	g.Expect(buildTemplate.Spec.Volumes[0].ConfigMap.LocalObjectReference.Name).To(gomega.BeEquivalentTo(configMapNameNodeJs6))
 	g.Expect(buildTemplate.Spec.Volumes[1].ConfigMap.LocalObjectReference.Name).To(gomega.BeEquivalentTo(configMapNameNodeJs8))
-
-	// TODO: check build object
-
-	// // TODO: check buildSpec
-	// buildByte, err := build.MarshalJSON()
-	// if err != nil {
-	// 	t.Fatalf("Error while marshaling build object: %v", err)
-	// }
-	// var buildSpec buildv1alpha1.BuildSpec
-	// err = json.Unmarshal(buildByte, &buildSpec)
-	// if err != nil {
-	// 	t.Fatalf("Error while unmarshaling buildSpec: %v", err)
-	// }
 
 	// g.Expect(service.Spec.RunLatest.Configuration.RevisionTemplate.Spec.Container.Image).To(gomega.HavePrefix("test/default-foo"))
 	g.Expect(build.Spec.ServiceAccountName).To(gomega.Equal("build-bot"))
@@ -195,7 +180,6 @@ func TestReconcile(t *testing.T) {
 	// ensure that image name referenced in build is used in the service
 	g.Expect(len(service.Spec.ConfigurationSpec.Template.Spec.RevisionSpec.PodSpec.Containers)).To(gomega.Equal(1))
 	var imageNameService = service.Spec.ConfigurationSpec.Template.Spec.RevisionSpec.PodSpec.Containers[0].Image
-
 	var imageNameBuild string
 	for _, argumentSpec := range build.Spec.Template.Arguments {
 		if argumentSpec.Name == "IMAGE" {
@@ -203,41 +187,41 @@ func TestReconcile(t *testing.T) {
 			break
 		}
 	}
-
 	g.Expect(imageNameBuild).To(gomega.Equal(imageNameService))
 
 	// ensure build template has correct destination
 	g.Expect(len(buildTemplate.Spec.Steps)).To(gomega.Equal(1))
 	g.Expect(buildTemplate.Spec.Steps[0].Args[1]).To(gomega.Equal("--destination=${IMAGE}"))
 
-	fnFetched := &runtimev1alpha1.Function{}
-	g.Expect(c.Get(context.TODO(), depKey, fnFetched)).NotTo(gomega.HaveOccurred())
-	g.Expect(fnFetched.Spec).To(gomega.Equal(fnCreated.Spec))
+	// ensure fetched function spec corresponds to created function spec
+	fnUpdatedFetched := &runtimev1alpha1.Function{}
+	g.Expect(c.Get(context.TODO(), depKey, fnUpdatedFetched)).NotTo(gomega.HaveOccurred())
+	g.Expect(fnUpdatedFetched.Spec).To(gomega.Equal(fnCreated.Spec))
 
-	fnUpdated := fnFetched.DeepCopy()
+	// update function code and add dependencies
+	fnUpdated := fnUpdatedFetched.DeepCopy()
 	fnUpdated.Spec.Function = `main() {return "bla"}`
 	fnUpdated.Spec.Deps = `dependencies`
-
-	fnFetched = &runtimev1alpha1.Function{}
 	g.Expect(c.Update(context.TODO(), fnUpdated)).NotTo(gomega.HaveOccurred())
-	g.Expect(c.Get(context.TODO(), depKey, fnFetched)).NotTo(gomega.HaveOccurred())
-	g.Expect(fnFetched.Spec).To(gomega.Equal(fnUpdated.Spec))
 
+	// get the updated function and compare spec
+	fnUpdatedFetched = &runtimev1alpha1.Function{}
+	g.Expect(c.Get(context.TODO(), depKey, fnUpdatedFetched)).NotTo(gomega.HaveOccurred())
+	g.Expect(fnUpdatedFetched.Spec).To(gomega.Equal(fnUpdated.Spec))
+	// call reconcile function
 	g.Eventually(requests, timeout).Should(gomega.Receive(gomega.Equal(expectedRequest)))
 
+	// get updated function code and ensure it got updated
 	cmUpdated := &corev1.ConfigMap{}
-	g.Eventually(func() string {
-		c.Get(context.TODO(), depKey, cmUpdated)
-		return cmUpdated.Data["handler.js"]
-	}, timeout, 1*time.Second).Should(gomega.Equal(fnUpdated.Spec.Function))
-	g.Eventually(func() string {
-		c.Get(context.TODO(), depKey, cmUpdated)
-		return cmUpdated.Data["package.json"]
-	}, timeout, 1*time.Second).Should(gomega.Equal(`dependencies`))
+	g.Eventually(func() error {
+		return c.Get(context.TODO(), depKey, cmUpdated)
+	}).Should(gomega.Succeed())
+	g.Expect(functionConfigMap.Data["handler.js"]).To(gomega.Equal(fnUpdated.Spec.Function))
+	g.Expect(functionConfigMap.Data["package.json"]).To(gomega.Equal("{}"))
 
+	// ensure updated knative service has updated image
 	ksvcUpdated := &servingv1alpha1.Service{}
 	g.Expect(c.Get(context.TODO(), depKey, ksvcUpdated)).NotTo(gomega.HaveOccurred())
-
 	hash := sha256.New()
 	print("cmUpdated: %v", cmUpdated)
 	hash.Write([]byte(cmUpdated.Data["handler.js"] + cmUpdated.Data["package.json"]))
