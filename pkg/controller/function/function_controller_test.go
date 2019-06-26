@@ -159,13 +159,16 @@ func TestReconcile(t *testing.T) {
 
 	// ensure build template is correct
 	// parameters are available
-	// TODO: do not assume any order for parameters
-	g.Expect(buildTemplate.Spec.Parameters[0]).To(gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
-		"Name": gomega.BeEquivalentTo("IMAGE"),
-	}))
-	g.Expect(buildTemplate.Spec.Parameters[1]).To(gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
-		"Name": gomega.BeEquivalentTo("DOCKERFILE"),
-	}))
+	g.Expect(buildTemplate.Spec.Parameters).To(gomega.ContainElement(
+		gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+			"Name": gomega.BeEquivalentTo("IMAGE"),
+		}),
+	))
+	g.Expect(buildTemplate.Spec.Parameters).To(gomega.ContainElement(
+		gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+			"Name": gomega.BeEquivalentTo("DOCKERFILE"),
+		}),
+	))
 	// TODO: ignore order
 	// ensure build template references correct config map
 	var configMapNameNodeJs6 = "dockerfile-nodejs-6"
