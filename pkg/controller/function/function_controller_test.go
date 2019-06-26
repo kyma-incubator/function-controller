@@ -107,24 +107,6 @@ func TestReconcile(t *testing.T) {
 		},
 	}
 
-	dockerFileConfigNodejs := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "dockerfile-nodejs8",
-			Namespace: "default",
-		},
-		Data: map[string]string{
-			"Dockerfile": `FROM kubeless/nodejs@sha256:5c3c21cf29231f25a0d7d2669c6f18c686894bf44e975fcbbbb420c6d045f7e7
-				USER root
-				RUN export KUBELESS_INSTALL_VOLUME='/kubeless' && \
-					mkdir /kubeless && \
-					cp /src/handler.js /kubeless && \
-					cp /src/package.json /kubeless && \
-					/kubeless-npm-install.sh
-				USER 1000
-			`,
-		},
-	}
-
 	// start manager
 	mgr, err := manager.New(cfg, manager.Options{})
 	g.Expect(err).NotTo(gomega.HaveOccurred())
@@ -138,7 +120,6 @@ func TestReconcile(t *testing.T) {
 	}()
 
 	// create configmap holding the Dockerfile
-	g.Expect(c.Create(context.TODO(), dockerFileConfigNodejs)).NotTo(gomega.HaveOccurred())
 	// create configmap which holds settings required by the function controller
 	g.Expect(c.Create(context.TODO(), fnConfig)).NotTo(gomega.HaveOccurred())
 	// create the actual function
