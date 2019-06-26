@@ -192,13 +192,23 @@ func TestReconcile(t *testing.T) {
 	g.Expect(build.Spec.ServiceAccountName).To(gomega.Equal("build-bot"))
 	// g.Expect(service.Spec.RunLatest.Configuration.RevisionTemplate.Spec.Container.Image).To(gomega.HavePrefix("test/default-foo"))
 
-	// TODO: have one build template per function (with indivial names)
-	// ensure that image name referenced in build is referenced in the service
+	// ensure that image name referenced in build is used in the service
 	g.Expect(len(service.Spec.ConfigurationSpec.Template.Spec.RevisionSpec.PodSpec.Containers)).To(gomega.Equal(1))
 	var imageNameService = service.Spec.ConfigurationSpec.Template.Spec.RevisionSpec.PodSpec.Containers[0].Image
+
+	var imageNameBuild string
+	for _, argumentSpec := range build.Spec.Template.Arguments {
+		if argumentSpec.Name == "IMAGE" {
+			imageNameBuild = argumentSpec.Value
+			break
+		}
+	}
+
+	g.Expect(imageNameBuild).To(gomega.Equal(imageNameService))
+
+	// ensure build template has correct destination
 	g.Expect(len(buildTemplate.Spec.Steps)).To(gomega.Equal(1))
-	var imageNameBuild = buildTemplate.Spec.Steps[0].Args[1]
-	g.Expect(imageNameBuild).To(gomega.Equal(fmt.Sprintf("--destination=%v", imageNameService)))
+	g.Expect(buildTemplate.Spec.Steps[0].Args[1]).To(gomega.Equal("--destination=${IMAGE}"))
 
 	fnFetched := &runtimev1alpha1.Function{}
 	g.Expect(c.Get(context.TODO(), depKey, fnFetched)).NotTo(gomega.HaveOccurred())

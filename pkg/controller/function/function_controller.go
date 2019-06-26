@@ -319,7 +319,7 @@ func (r *ReconcileFunction) getFunctionBuildTemplate(rnInfo *runtimeUtil.Runtime
 			Name:      buildTemplateName,
 			Namespace: buildTemplateNamespace,
 		},
-		Spec: runtimeUtil.GetBuildTemplateSpec(fn, imageName),
+		Spec: runtimeUtil.GetBuildTemplateSpec(fn),
 	}
 
 	if err := controllerutil.SetControllerReference(fn, deployBuildTemplate, r.scheme); err != nil {

@@ -1,14 +1,14 @@
 package utils
 
 import (
-	"fmt"
+	"os"
+	"time"
+
 	buildv1alpha1 "github.com/knative/build/pkg/apis/build/v1alpha1"
 	buildClient "github.com/knative/build/pkg/client/clientset/versioned"
 	runtimev1alpha1 "github.com/kyma-incubator/runtime/pkg/apis/runtime/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"os"
-	"time"
 )
 
 /*
@@ -64,6 +64,7 @@ func NewBuild(rnInfo *RuntimeInfo, fn *runtimev1alpha1.Function, imageName strin
 		timeout = 30 * time.Minute
 	}
 
+	// TODO: do we need the extra build struct or not ?
 	return &Build{
 		Name:               fn.Name,
 		Namespace:          fn.Namespace,
@@ -113,7 +114,6 @@ func GetBuildResource(build *Build, fn *runtimev1alpha1.Function) *buildv1alpha1
 		},
 		Spec: buildv1alpha1.BuildSpec{
 			ServiceAccountName: build.ServiceAccountName,
-			//Timeout:            build.Timeout,
 			Template: &buildv1alpha1.TemplateInstantiationSpec{
 				Name:      "function-kaniko",
 				Kind:      buildv1alpha1.BuildTemplateKind,
@@ -131,7 +131,7 @@ func GetBuildResource(build *Build, fn *runtimev1alpha1.Function) *buildv1alpha1
 	return &b
 }
 
-func GetBuildTemplateSpec(fn *runtimev1alpha1.Function, imageName string) buildv1alpha1.BuildTemplateSpec {
+func GetBuildTemplateSpec(fn *runtimev1alpha1.Function) buildv1alpha1.BuildTemplateSpec {
 
 	parameters := []buildv1alpha1.ParameterSpec{
 		{
@@ -144,7 +144,7 @@ func GetBuildTemplateSpec(fn *runtimev1alpha1.Function, imageName string) buildv
 		},
 	}
 
-	destination := fmt.Sprintf("--destination=%s", imageName)
+	destination := "--destination=${IMAGE}"
 	steps := []corev1.Container{
 		{
 			Name:  "build-and-push",
