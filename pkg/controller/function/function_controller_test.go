@@ -23,6 +23,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/onsi/gomega/gstruct"
+
 	buildv1alpha1 "github.com/knative/build/pkg/apis/build/v1alpha1"
 	servingv1alpha1 "github.com/knative/serving/pkg/apis/serving/v1alpha1"
 	runtimev1alpha1 "github.com/kyma-incubator/runtime/pkg/apis/runtime/v1alpha1"
@@ -42,7 +44,7 @@ var c client.Client
 var expectedRequest = reconcile.Request{NamespacedName: types.NamespacedName{Name: "foo", Namespace: "default"}}
 var depKey = types.NamespacedName{Name: "foo", Namespace: "default"}
 
-const timeout = time.Second * 10
+const timeout = time.Second * 15
 
 func TestReconcile(t *testing.T) {
 	g := gomega.NewGomegaWithT(t)
@@ -148,14 +150,34 @@ func TestReconcile(t *testing.T) {
 	g.Expect(service.Spec.ConfigurationSpec.Template.Spec.RevisionSpec.PodSpec.Containers[0].Env).To(gomega.Equal(expectedEnv))
 
 	// get the build object
-	build := &buildv1alpha1.Build{
-		ObjectMeta: metav1.ObjectMeta{Name: "foo", Namespace: "default"},
-	}
+	build := &buildv1alpha1.Build{}
 	g.Eventually(func() error { return c.Get(context.TODO(), depKey, build) }, timeout).
 		Should(gomega.Succeed())
+
+	// get the build template
+	buildTemplate := &buildv1alpha1.BuildTemplate{}
+	g.Eventually(func() error {
+		return c.Get(context.TODO(), types.NamespacedName{Name: "function-kaniko", Namespace: "default"}, buildTemplate)
+	}, timeout).
+		Should(gomega.Succeed())
+
+	// ensure build template is correct
+	// TODO: do not assume any order for parameters
+	g.Expect(buildTemplate.Spec.Parameters[0]).To(gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+		"Name": gomega.BeEquivalentTo("IMAGE"),
+	}))
+	g.Expect(buildTemplate.Spec.Parameters[1]).To(gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+		"Name": gomega.BeEquivalentTo("DOCKERFILE"),
+	}))
+	// TODO: ignore order
+	var configMapNameNodeJs6 = "dockerfile-nodejs-6"
+	var configMapNameNodeJs8 = "dockerfile-nodejs-8"
+	g.Expect(buildTemplate.Spec.Volumes[0].ConfigMap.LocalObjectReference.Name).To(gomega.BeEquivalentTo(configMapNameNodeJs6))
+	g.Expect(buildTemplate.Spec.Volumes[1].ConfigMap.LocalObjectReference.Name).To(gomega.BeEquivalentTo(configMapNameNodeJs8))
+
 	// TODO: check build object
 
-	// TODO: check buildSpec
+	// // TODO: check buildSpec
 	// buildByte, err := build.MarshalJSON()
 	// if err != nil {
 	// 	t.Fatalf("Error while marshaling build object: %v", err)
@@ -167,9 +189,16 @@ func TestReconcile(t *testing.T) {
 	// }
 
 	// g.Expect(service.Spec.RunLatest.Configuration.RevisionTemplate.Spec.Container.Image).To(gomega.HavePrefix("test/default-foo"))
-	// g.Expect(len(buildSpec.Volumes)).To(gomega.Equal(2))
-	// g.Expect(buildSpec.ServiceAccountName).To(gomega.Equal("build-bot"))
+	g.Expect(build.Spec.ServiceAccountName).To(gomega.Equal("build-bot"))
 	// g.Expect(service.Spec.RunLatest.Configuration.RevisionTemplate.Spec.Container.Image).To(gomega.HavePrefix("test/default-foo"))
+
+	// TODO: have one build template per function (with indivial names)
+	// ensure that image name referenced in build is referenced in the service
+	g.Expect(len(service.Spec.ConfigurationSpec.Template.Spec.RevisionSpec.PodSpec.Containers)).To(gomega.Equal(1))
+	var imageNameService = service.Spec.ConfigurationSpec.Template.Spec.RevisionSpec.PodSpec.Containers[0].Image
+	g.Expect(len(buildTemplate.Spec.Steps)).To(gomega.Equal(1))
+	var imageNameBuild = buildTemplate.Spec.Steps[0].Args[1]
+	g.Expect(imageNameBuild).To(gomega.Equal(fmt.Sprintf("--destination=%v", imageNameService)))
 
 	fnFetched := &runtimev1alpha1.Function{}
 	g.Expect(c.Get(context.TODO(), depKey, fnFetched)).NotTo(gomega.HaveOccurred())
