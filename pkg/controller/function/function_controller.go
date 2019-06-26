@@ -166,29 +166,29 @@ func (r *ReconcileFunction) Reconcile(request reconcile.Request) (reconcile.Resu
 	functionSha := fmt.Sprintf("%x", hash.Sum(nil))
 	imageName := fmt.Sprintf("%s/%s-%s:%s", rnInfo.RegistryInfo, fn.Namespace, fn.Name, functionSha)
 
-	log.Info("getFunctionBuildTemplate")
+	log.Info("getFunctionBuildTemplate", "function_name:", fn.Name)
 	if err := r.getFunctionBuildTemplate(rnInfo, fnConfig, fn, imageName); err != nil {
 		return reconcile.Result{}, err
 	}
-	log.Info("getFunctionBuildTemplate [done]")
+	log.Info("getFunctionBuildTemplate [done]", "function_name:", fn.Name)
 
-	log.Info("buildFunctionImage")
+	log.Info("buildFunctionImage", "function_name:", fn.Name)
 	if err := r.buildFunctionImage(rnInfo, fnConfig, fn, imageName); err != nil {
 		return reconcile.Result{}, err
 	}
-	log.Info("buildFunctionImage [done]")
+	log.Info("buildFunctionImage [done]", "function_name:", fn.Name)
 
-	log.Info("serveFunction")
+	log.Info("serveFunction", "function_name:", fn.Name)
 	if err := r.serveFunction(rnInfo, foundCm, fn, imageName); err != nil {
 		return reconcile.Result{}, err
 	}
-	log.Info("serveFunction [done]")
+	log.Info("serveFunction [done]", "function_name:", fn.Name)
 
-	log.Info("getFunctionCondition")
+	log.Info("getFunctionCondition", "function_name:", fn.Name)
 	if err := r.getFunctionCondition(fn); err != nil {
 		return reconcile.Result{}, err
 	}
-	log.Info("getFunctionCondition [done]")
+	log.Info("getFunctionCondition [done]", "function_name:", fn.Name)
 
 	return reconcile.Result{}, nil
 
