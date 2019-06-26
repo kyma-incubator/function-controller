@@ -216,8 +216,14 @@ func TestReconcile(t *testing.T) {
 	g.Eventually(func() error {
 		return c.Get(context.TODO(), depKey, cmUpdated)
 	}).Should(gomega.Succeed())
-	g.Expect(functionConfigMap.Data["handler.js"]).To(gomega.Equal(fnUpdated.Spec.Function))
-	g.Expect(functionConfigMap.Data["package.json"]).To(gomega.Equal("{}"))
+	g.Eventually(func() string {
+		c.Get(context.TODO(), depKey, cmUpdated)
+		return cmUpdated.Data["handler.js"]
+	}, timeout, 1*time.Second).Should(gomega.Equal(fnUpdated.Spec.Function))
+	g.Eventually(func() string {
+		c.Get(context.TODO(), depKey, cmUpdated)
+		return cmUpdated.Data["package.json"]
+	}, timeout, 1*time.Second).Should(gomega.Equal(`dependencies`))
 
 	// ensure updated knative service has updated image
 	ksvcUpdated := &servingv1alpha1.Service{}
