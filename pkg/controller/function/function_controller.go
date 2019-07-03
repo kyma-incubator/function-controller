@@ -519,7 +519,7 @@ func (r *ReconcileFunction) buildFunctionImage(rnInfo *runtimeUtil.RuntimeInfo, 
 }
 
 func compareBuildImages(foundBuild *buildv1alpha1.Build, imageName string) bool {
-	if len(foundBuild.Spec.Template.Arguments) > 0 {
+	if foundBuild.Spec.Template != nil && len(foundBuild.Spec.Template.Arguments) > 0 {
 		args := foundBuild.Spec.Template.Arguments
 		for _, arg := range args {
 			if arg.Name == "IMAGE" && arg.Value == imageName {
