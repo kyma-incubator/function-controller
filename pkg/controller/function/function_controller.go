@@ -662,7 +662,7 @@ func (r *ReconcileFunction) getFunctionCondition(fn *runtimev1alpha1.Function) {
 
 	// Get Knative Service
 	foundService := &servingv1alpha1.Service{}
-	if err := r.Get(context.TODO(), types.NamespacedName{Name: fn.Name, Namespace: fn.Namespace}, foundService); ignoreNotFound(err) != nil {
+	if err := r.Get(context.TODO(), types.NamespacedName{Name: fn.Name, Namespace: fn.Namespace}, foundService); err != nil {
 		log.Error(err, "Error while trying to get the Knative Service for the function Status", "namespace", fn.Namespace, "name", fn.Name)
 		return
 	}
