@@ -23,6 +23,7 @@ import (
 	"sync"
 	"testing"
 
+	buildv1alpha1 "github.com/knative/build/pkg/apis/build/v1alpha1"
 	servingv1alpha1 "github.com/knative/serving/pkg/apis/serving/v1alpha1"
 	"github.com/kyma-incubator/runtime/pkg/apis"
 	"github.com/onsi/gomega"
@@ -44,7 +45,14 @@ func TestMain(m *testing.M) {
 	logf.SetLogger(logf.ZapLogger(false))
 	apis.AddToScheme(scheme.Scheme)
 
-	servingv1alpha1.SchemeBuilder.AddToScheme(scheme.Scheme)
+	if err := servingv1alpha1.SchemeBuilder.AddToScheme(scheme.Scheme); err != nil {
+		log.Error(err, "unable add serving APIs to scheme")
+		os.Exit(1)
+	}
+	if err := buildv1alpha1.AddToScheme(scheme.Scheme); err != nil {
+		log.Error(err, "unable add Build APIs to scheme")
+		os.Exit(1)
+	}
 
 	var err error
 	if cfg, err = t.Start(); err != nil {
