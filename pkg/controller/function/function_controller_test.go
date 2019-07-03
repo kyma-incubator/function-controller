@@ -24,7 +24,6 @@ import (
 	"time"
 
 	buildv1alpha1 "github.com/knative/build/pkg/apis/build/v1alpha1"
-	duckv1alpha1 "github.com/knative/pkg/apis/duck/v1alpha1"
 	servingv1alpha1 "github.com/knative/serving/pkg/apis/serving/v1alpha1"
 	runtimev1alpha1 "github.com/kyma-incubator/runtime/pkg/apis/runtime/v1alpha1"
 	"github.com/onsi/gomega"
@@ -37,6 +36,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	duckv1beta1 "github.com/knative/pkg/apis/duck/v1beta1"
+	"github.com/knative/pkg/apis"
 )
 
 var c client.Client
@@ -259,6 +260,7 @@ func TestFunctionConditionNewFunction(t *testing.T) {
 	//reconcileFunction := &ReconcileFunction{Client: c, scheme: scheme.Scheme}
 
 	g.Expect(c.Create(context.TODO(), &function)).Should(gomega.Succeed())
+
 	//g.Expect(reconcileFunction.getFunctionCondition(&function)).Should(gomega.Succeed())
 
 	// no knative objects present => no function status
@@ -281,22 +283,24 @@ func TestFunctionConditionBuildError(t *testing.T) {
 		},
 	}
 
-	// Example condition from an errored build (using wrong dockerhub credentials)
-	// Conditions:
-	//  Last Transition Time:  2019-06-26T15:57:31Z
-	//  Message:               build step "build-step-build-and-push" exited with code 1 (image: "docker-pullable://gcr.io/kaniko-project/executor@sha256:d9fe474f80b73808dc12b54f45f5fc90f7856d9fc699d4a5e79d968a1aef1a72"); for logs run: kubectl -n default logs example-build-pod-ed7514 -c build-step-build-and-push
-	//  Status:                False
-	//  Type:                  Succeeded
-	build := buildv1alpha1.Build{
+	service := &servingv1alpha1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "foo",
 			Namespace: "default",
 		},
-		Status: buildv1alpha1.BuildStatus{
-			Status: duckv1alpha1.Status{
-				Conditions: []duckv1alpha1.Condition{
+		Status: servingv1alpha1.ServiceStatus{
+			Status: duckv1beta1.Status{
+				Conditions: []apis.Condition{
 					{
-						Type:   duckv1alpha1.ConditionSucceeded,
+						Type:   servingv1alpha1.ServiceConditionReady,
+						Status: corev1.ConditionFalse,
+					},
+					{
+						Type:   servingv1alpha1.RouteConditionReady,
+						Status: corev1.ConditionFalse,
+					},
+					{
+						Type:   servingv1alpha1.ConfigurationConditionReady,
 						Status: corev1.ConditionFalse,
 					},
 				},
@@ -304,9 +308,11 @@ func TestFunctionConditionBuildError(t *testing.T) {
 		},
 	}
 
+	//reconcileFunction := &ReconcileFunction{Client: c, scheme: scheme.Scheme}
+
 	// create function and build
 	g.Expect(c.Create(context.TODO(), function)).Should(gomega.Succeed())
-	g.Expect(c.Create(context.TODO(), &build)).Should(gomega.Succeed())
+	g.Expect(c.Create(context.TODO(), service)).Should(gomega.Succeed())
 	//g.Expect(reconcileFunction.getFunctionCondition(function)).Should(gomega.Succeed())
 
 	g.Expect(function.Status.Condition).To(gomega.Equal(runtimev1alpha1.FunctionConditionDeploying))
