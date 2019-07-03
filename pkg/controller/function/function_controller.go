@@ -454,6 +454,7 @@ func (r *ReconcileFunction) buildFunctionImage(rnInfo *runtimeUtil.RuntimeInfo, 
 			}
 			return err
 		}
+		return nil
 
 	} else if err != nil {
 		log.Error(err, "Error while trying to create Knative Build", "namespace", deployBuild.Namespace, "name", deployBuild.Name)
@@ -544,7 +545,7 @@ func (r *ReconcileFunction) updateBuildFunctionImage(foundBuild *buildv1alpha1.B
 
 	// Delete already existing Build with the old image-
 	// foundBuild = foundBuild.DeepCopy()
-	log.Info("Deleteing Knative Build", "namespace", foundBuild.Namespace, "name", foundBuild.Name)
+	log.Info("Deleting Knative Build", "namespace", foundBuild.Namespace, "name", foundBuild.Name)
 	err = r.Delete(context.TODO(), foundBuild)
 	if err != nil && !errors.IsNotFound(err) {
 		return err
