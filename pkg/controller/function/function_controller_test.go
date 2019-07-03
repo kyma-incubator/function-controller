@@ -276,7 +276,7 @@ func TestFunctionConditionBuildError(t *testing.T) {
 	c := mgr.GetClient()
 	//reconcileFunction := &ReconcileFunction{Client: c, scheme: scheme.Scheme}
 
-	function := &runtimev1alpha1.Function{
+	function := runtimev1alpha1.Function{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "foo",
 			Namespace: "default",
@@ -308,12 +308,12 @@ func TestFunctionConditionBuildError(t *testing.T) {
 		},
 	}
 
-	//reconcileFunction := &ReconcileFunction{Client: c, scheme: scheme.Scheme}
+	reconcileFunction := ReconcileFunction{Client: c, scheme: scheme.Scheme}
 
 	// create function and build
-	g.Expect(c.Create(context.TODO(), function)).Should(gomega.Succeed())
+	g.Expect(c.Create(context.TODO(), &function)).Should(gomega.Succeed())
 	g.Expect(c.Create(context.TODO(), service)).Should(gomega.Succeed())
-	//g.Expect(reconcileFunction.getFunctionCondition(function)).Should(gomega.Succeed())
+	reconcileFunction.getFunctionCondition(&function)
 
 	g.Expect(function.Status.Condition).To(gomega.Equal(runtimev1alpha1.FunctionConditionDeploying))
 }
