@@ -276,6 +276,14 @@ func TestFunctionConditionServiceError(t *testing.T) {
 	c := mgr.GetClient()
 	reconcileFunction := &ReconcileFunction{Client: c, scheme: scheme.Scheme}
 
+	recFn, _ := SetupTestReconcile(newReconciler(mgr))
+	g.Expect(add(mgr, recFn)).NotTo(gomega.HaveOccurred())
+	stopMgr, mgrStopped := StartTestManager(mgr, g)
+	defer func() {
+		close(stopMgr)
+		mgrStopped.Wait()
+	}()
+
 	function := runtimev1alpha1.Function{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "foo",
@@ -311,9 +319,11 @@ func TestFunctionConditionServiceError(t *testing.T) {
 	// create function and build
 	g.Expect(c.Create(context.TODO(), &function)).Should(gomega.Succeed())
 	g.Expect(c.Create(context.TODO(), &service)).Should(gomega.Succeed())
-	reconcileFunction.getFunctionCondition(&function)
 
-	g.Expect(function.Status.Condition).To(gomega.Equal(runtimev1alpha1.FunctionConditionDeploying))
+	g.Eventually(func() runtimev1alpha1.FunctionCondition {
+		reconcileFunction.getFunctionCondition(&function)
+		return function.Status.Condition
+	}).Should(gomega.Equal(runtimev1alpha1.FunctionConditionDeploying))
 }
 
 // Pending state
