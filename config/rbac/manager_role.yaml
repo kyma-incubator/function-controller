@@ -53,6 +53,8 @@ rules:
   - serving.knative.dev
   resources:
   - services
+  - configurations
+  - revisions
   verbs:
   - get
   - list
@@ -82,6 +84,8 @@ rules:
   - serviceaccounts
   verbs:
   - get
+  - watch
+  - update
   - list
 - apiGroups:
   - ""
@@ -92,6 +96,8 @@ rules:
   verbs:
   - create
   - get
+  - watch
+  - update
   - delete
   - list
   - update

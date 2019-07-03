@@ -23,12 +23,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/onsi/gomega/gstruct"
-
 	buildv1alpha1 "github.com/knative/build/pkg/apis/build/v1alpha1"
+	duckv1alpha1 "github.com/knative/pkg/apis/duck/v1alpha1"
 	servingv1alpha1 "github.com/knative/serving/pkg/apis/serving/v1alpha1"
 	runtimev1alpha1 "github.com/kyma-incubator/runtime/pkg/apis/runtime/v1alpha1"
 	"github.com/onsi/gomega"
+	"github.com/onsi/gomega/gstruct"
 	"golang.org/x/net/context"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -237,7 +237,96 @@ func TestReconcile(t *testing.T) {
 	functionSha := fmt.Sprintf("%x", hash.Sum(nil))
 	g.Expect(ksvcUpdated.Spec.ConfigurationSpec.Template.Spec.RevisionSpec.PodSpec.Containers[0].Image).
 		To(gomega.Equal(fmt.Sprintf("test/%s-%s:%s", "default", "foo", functionSha)))
+
+	g.Expect(fnUpdatedFetched.Status.Condition).To(gomega.Equal(runtimev1alpha1.FunctionConditionRunning))
 }
+
+// Test status of newly created function
+func TestFunctionConditionNewFunction(t *testing.T) {
+	g := gomega.NewGomegaWithT(t)
+
+	mgr, err := manager.New(cfg, manager.Options{})
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+	c := mgr.GetClient()
+
+	function := runtimev1alpha1.Function{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "function",
+			Namespace: "default",
+		},
+	}
+
+	//reconcileFunction := &ReconcileFunction{Client: c, scheme: scheme.Scheme}
+
+	g.Expect(c.Create(context.TODO(), &function)).Should(gomega.Succeed())
+	//g.Expect(reconcileFunction.getFunctionCondition(&function)).Should(gomega.Succeed())
+
+	// no knative objects present => no function status
+	g.Expect(function.Status.Condition).To(gomega.Equal(runtimev1alpha1.FunctionCondition("")))
+}
+
+// Test status of function with errored build
+func TestFunctionConditionBuildError(t *testing.T) {
+	g := gomega.NewGomegaWithT(t)
+
+	mgr, err := manager.New(cfg, manager.Options{})
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+	c := mgr.GetClient()
+	//reconcileFunction := &ReconcileFunction{Client: c, scheme: scheme.Scheme}
+
+	function := &runtimev1alpha1.Function{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "foo",
+			Namespace: "default",
+		},
+	}
+
+	// Example condition from an errored build (using wrong dockerhub credentials)
+	// Conditions:
+	//  Last Transition Time:  2019-06-26T15:57:31Z
+	//  Message:               build step "build-step-build-and-push" exited with code 1 (image: "docker-pullable://gcr.io/kaniko-project/executor@sha256:d9fe474f80b73808dc12b54f45f5fc90f7856d9fc699d4a5e79d968a1aef1a72"); for logs run: kubectl -n default logs example-build-pod-ed7514 -c build-step-build-and-push
+	//  Status:                False
+	//  Type:                  Succeeded
+	build := buildv1alpha1.Build{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "foo",
+			Namespace: "default",
+		},
+		Status: buildv1alpha1.BuildStatus{
+			Status: duckv1alpha1.Status{
+				Conditions: []duckv1alpha1.Condition{
+					{
+						Type:   duckv1alpha1.ConditionSucceeded,
+						Status: corev1.ConditionFalse,
+					},
+				},
+			},
+		},
+	}
+
+	// create function and build
+	g.Expect(c.Create(context.TODO(), function)).Should(gomega.Succeed())
+	g.Expect(c.Create(context.TODO(), &build)).Should(gomega.Succeed())
+	//g.Expect(reconcileFunction.getFunctionCondition(function)).Should(gomega.Succeed())
+
+	g.Expect(function.Status.Condition).To(gomega.Equal(runtimev1alpha1.FunctionConditionDeploying))
+}
+
+// Pending state
+// Conditions:
+// Last Transition Time:  2019-06-26T15:50:26Z
+// Message:               pod status "Initialized":"False"; message: "containers with incomplete status: [build-step-build-and-push]"
+// Reason:                Pending
+// Status:                Unknown
+// Type:                  Succeeded
+// func TestFunctionConditionBuildError(t *testing.T) {
+// }
+
+// Build finished state
+// Conditions:
+// Last Transition Time:  2019-06-26T15:52:41Z
+// Status:                True
+// Type:                  Succeeded
 
 func TestReconcileErrors(t *testing.T) {
 	g := gomega.NewGomegaWithT(t)

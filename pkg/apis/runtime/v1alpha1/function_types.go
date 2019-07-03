@@ -55,6 +55,8 @@ const (
 	FunctionConditionError FunctionCondition = "Error"
 	// Indicates that function has a deploying condition.
 	FunctionConditionDeploying FunctionCondition = "Deploying"
+	// Indicates that there is a new image and function needs to be updated.
+	FunctionConditionUpdating FunctionCondition = "Updating"
 )
 
 // FunctionStatus defines the observed state of Function

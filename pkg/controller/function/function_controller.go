@@ -71,6 +71,29 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	if err != nil {
 		return err
 	}
+
+	// Watch for changes to Build
+	err = c.Watch(&source.Kind{Type: &buildv1alpha1.Build{}}, &handler.EnqueueRequestForObject{})
+	if err != nil {
+		return err
+	}
+
+	// Watch for changes to Service
+	err = c.Watch(&source.Kind{Type: &servingv1alpha1.Service{}}, &handler.EnqueueRequestForObject{})
+	if err != nil {
+		return err
+	}
+
+	err = c.Watch(&source.Kind{Type: &servingv1alpha1.Route{}}, &handler.EnqueueRequestForObject{})
+	if err != nil {
+		return err
+	}
+
+	err = c.Watch(&source.Kind{Type: &servingv1alpha1.Configuration{}}, &handler.EnqueueRequestForObject{})
+	if err != nil {
+		return err
+	}
+
 	// TODO(user): Modify this to be the types you create
 	// Uncomment watch a Deployment created by Function - change this for objects you create
 	// err = c.Watch(&source.Kind{Type: &corev1.ConfigMap{}}, &handler.EnqueueRequestForOwner{
@@ -94,6 +117,9 @@ var (
 	// name of build-template
 	buildTemplateName                      = getEnvDefault("BUILD_TEMPLATE", "function-kaniko")
 	_                 reconcile.Reconciler = &ReconcileFunction{}
+
+	// "build and push step"
+	buildAndPushStep = "build-step-build-and-push"
 )
 
 // ReconcileFunction is the controller.Reconciler implementation for Function objects
@@ -114,16 +140,16 @@ func getEnvDefault(envName string, defaultValue string) string {
 
 // Reconcile reads that state of the cluster for a Function object and makes changes based on the state read
 // and what is in the Function.Spec
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="runtime.kyma-project.io",resources=functions,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="runtime.kyma-project.io",resources=functions/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=mutatingwebhookconfigurations;validatingwebhookconfigurations,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="serving.knative.dev",resources=services,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="serving.knative.dev",resources=services;routes;configurations;revisions,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="build.knative.dev",resources=builds;buildtemplates;clusterbuildtemplates;services,verbs=get;list;create;update;delete;patch;watch
-// +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list
-// +kubebuilder:rbac:groups=";apps;extensions",resources=deployments,verbs=create;get;delete;list;update;patch
+// +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;watch;update;list
+// +kubebuilder:rbac:groups=";apps;extensions",resources=deployments,verbs=create;get;watch;update;delete;list;update;patch
 func (r *ReconcileFunction) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	fmt.Print("hello world")
 
 	// Get Function Controller Configuration
 	fnConfig := &corev1.ConfigMap{}
@@ -141,6 +167,9 @@ func (r *ReconcileFunction) Reconcile(request reconcile.Request) (reconcile.Resu
 	// Get Function instance
 	fn := &runtimev1alpha1.Function{}
 	if err := r.getFunctionInstance(request, fn); err != nil {
+		// status of the functon must change to error.
+		r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionError)
+
 		log.Error(err, "Error reading Function instance", "namespace", request.Namespace, "name", request.Name)
 		return reconcile.Result{}, err
 	}
@@ -149,46 +178,55 @@ func (r *ReconcileFunction) Reconcile(request reconcile.Request) (reconcile.Resu
 	foundCm := &corev1.ConfigMap{}
 	deployCm := &corev1.ConfigMap{}
 	if err := r.createFunctionConfigMap(foundCm, deployCm, fn); err != nil {
-		log.Error(err, "Error while trying to create the Function's ConfigMap", "namespace", deployCm.Namespace, "name", deployCm.Name)
+		// status of the functon must change to error.
+		r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionError)
 
+		log.Error(err, "Error while trying to create the Function's ConfigMap", "namespace", deployCm.Namespace, "name", deployCm.Name)
 		return reconcile.Result{}, err
 	}
 
 	// Update Function's ConfigMap
 	if err := r.updateFunctionConfigMap(foundCm, deployCm); err != nil {
+		// status of the functon must change to error.
+		r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionError)
+
 		log.Error(err, "Error while trying to update Function's ConfigMap:", "namespace", deployCm.Namespace, "name", deployCm.Name)
 		return reconcile.Result{}, err
 	}
 
+	// Create function's image name
 	hash := sha256.New()
 	print("foundCM: %v", foundCm)
 	hash.Write([]byte(foundCm.Data["handler.js"] + foundCm.Data["package.json"]))
 	functionSha := fmt.Sprintf("%x", hash.Sum(nil))
 	imageName := fmt.Sprintf("%s/%s-%s:%s", rnInfo.RegistryInfo, fn.Namespace, fn.Name, functionSha)
+	log.Info("function image", "namespace:", fn.Namespace, "name:", fn.Name, "imageName:", imageName)
 
-	log.Info("getFunctionBuildTemplate", "function_name:", fn.Name)
-	if err := r.getFunctionBuildTemplate(rnInfo, fnConfig, fn, imageName); err != nil {
+	if err := r.getFunctionBuildTemplate(rnInfo, fnConfig, fn); err != nil {
+		// status of the functon must change to error.
+		r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionError)
+
 		return reconcile.Result{}, err
 	}
-	log.Info("getFunctionBuildTemplate [done]", "function_name:", fn.Name)
+	log.Info("get BuildTemplate [done]", "function_name:", fn.Name)
 
-	log.Info("buildFunctionImage", "function_name:", fn.Name)
 	if err := r.buildFunctionImage(rnInfo, fnConfig, fn, imageName); err != nil {
+		// status of the functon must change to error.
+		r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionError)
+
 		return reconcile.Result{}, err
 	}
-	log.Info("buildFunctionImage [done]", "function_name:", fn.Name)
+	log.Info("build Function image [done]", "function_name:", fn.Name)
 
-	log.Info("serveFunction", "function_name:", fn.Name)
 	if err := r.serveFunction(rnInfo, foundCm, fn, imageName); err != nil {
+		// status of the functon must change to error.
+		r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionError)
 		return reconcile.Result{}, err
 	}
-	log.Info("serveFunction [done]", "function_name:", fn.Name)
+	log.Info("serve function [done]", "function_name:", fn.Name)
 
-	log.Info("getFunctionCondition", "function_name:", fn.Name)
-	if err := r.getFunctionCondition(fn); err != nil {
-		return reconcile.Result{}, err
-	}
-	log.Info("getFunctionCondition [done]", "function_name:", fn.Name)
+	r.getFunctionCondition(fn)
+	log.Info("Update Function Status [done]", "function_name:", fn.Name)
 
 	return reconcile.Result{}, nil
 
@@ -223,8 +261,18 @@ func (r *ReconcileFunction) getFunctionInstance(request reconcile.Request, fn *r
 		return err
 	}
 
-	// TODO REMOVE LOG
 	log.Info("Function instance found:", "namespace", fn.Namespace, "name", fn.Name)
+
+	if fn.Status.Condition == "" {
+		// As the instance of the new function was found. It status is updated.
+		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionDeploying)
+		if err != nil {
+			if errors.IsNotFound(err) {
+				return nil
+			}
+			return err
+		}
+	}
 
 	return nil
 }
@@ -268,11 +316,12 @@ func (r *ReconcileFunction) createFunctionConfigMap(foundCm *corev1.ConfigMap, d
 		if err != nil {
 			return err
 		}
+
+		return nil
 	} else if err != nil {
 		return err
 	}
 
-	// TODO REMOVE LOG
 	log.Info("Function ConfigMap:", "namespace", deployCm.Namespace, "name", deployCm.Name)
 
 	return nil
@@ -288,25 +337,24 @@ func (r *ReconcileFunction) updateFunctionConfigMap(foundCm *corev1.ConfigMap, d
 		foundCm.ObjectMeta = deployCm.ObjectMeta
 		log.Info("Updating Function's ConfigMap", "namespace", deployCm.Namespace, "name", deployCm.Name)
 		err := r.Update(context.TODO(), foundCm)
-		if err != nil {
+		if err != nil && !errors.IsNotFound(err) {
 			return err
 		}
+
+		log.Info("Updated Function'S ConfigMap", "namespace", deployCm.Namespace, "name", deployCm.Name)
 	}
 
 	err := r.Get(context.TODO(), types.NamespacedName{Name: deployCm.Name, Namespace: deployCm.Namespace}, foundCm)
-	if err != nil {
+	if err != nil && !errors.IsNotFound(err) {
 		log.Error(err, "Unable to read the updated Function ConfigMap", "namespace", deployCm.Namespace, "name", deployCm.Name)
 		return err
 	}
-
-	// TODO REMOVE LOG
-	log.Info("Updated Function'S ConfigMap", "namespace", deployCm.Namespace, "name", deployCm.Name)
 
 	return nil
 
 }
 
-func (r *ReconcileFunction) getFunctionBuildTemplate(rnInfo *runtimeUtil.RuntimeInfo, fnConfig *corev1.ConfigMap, fn *runtimev1alpha1.Function, imageName string) error {
+func (r *ReconcileFunction) getFunctionBuildTemplate(rnInfo *runtimeUtil.RuntimeInfo, fnConfig *corev1.ConfigMap, fn *runtimev1alpha1.Function) error {
 
 	buildTemplateNamespace := fn.Namespace
 
@@ -335,21 +383,45 @@ func (r *ReconcileFunction) getFunctionBuildTemplate(rnInfo *runtimeUtil.Runtime
 		if err != nil {
 			log.Error(err, "Error while trying to Create Knative BuildTemplate", "namespace", deployBuildTemplate.Namespace, "name", deployBuildTemplate.Name)
 			return err
+
 		}
+
+		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionDeploying)
+		if err != nil {
+			if errors.IsNotFound(err) {
+				return nil
+			}
+			return err
+		}
+
 		return nil
+
 	} else if err != nil {
 		log.Error(err, "Error while trying to get Knative BuildTemplate", "namespace", deployBuildTemplate.Namespace, "name", deployBuildTemplate.Name)
 		return err
 	}
 
 	if !reflect.DeepEqual(deployBuildTemplate.Spec, foundBuildTemplate.Spec) {
+
 		foundBuildTemplate.Spec = deployBuildTemplate.Spec
 		log.Info("Updating Knative BuildTemplate", "namespace", deployBuildTemplate.Namespace, "name", deployBuildTemplate.Name)
 		err = r.Update(context.TODO(), foundBuildTemplate)
 		if err != nil {
+			if errors.IsNotFound(err) {
+				return nil
+			}
 			log.Error(err, "Error while trying to Update Knative BuildTemplate", "namespace", deployBuildTemplate.Namespace, "name", deployBuildTemplate.Name)
 			return err
 		}
+
+		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionDeploying)
+		if err != nil {
+			if errors.IsNotFound(err) {
+				return nil
+			}
+			return err
+		}
+
 	}
 
 	return nil
@@ -358,8 +430,9 @@ func (r *ReconcileFunction) getFunctionBuildTemplate(rnInfo *runtimeUtil.Runtime
 func (r *ReconcileFunction) buildFunctionImage(rnInfo *runtimeUtil.RuntimeInfo, fnConfig *corev1.ConfigMap, fn *runtimev1alpha1.Function, imageName string) error {
 
 	// Create a new Build data structure
-	build := runtimeUtil.NewBuild(rnInfo, fn, imageName)
+	build := runtimeUtil.NewBuild(rnInfo, fn, imageName, buildTemplateName)
 	deployBuild := runtimeUtil.GetBuildResource(build, fn)
+
 	if err := controllerutil.SetControllerReference(fn, deployBuild, r.scheme); err != nil {
 		return err
 	}
@@ -373,20 +446,125 @@ func (r *ReconcileFunction) buildFunctionImage(rnInfo *runtimeUtil.RuntimeInfo, 
 		if err != nil {
 			return err
 		}
-		return nil
+
+		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionDeploying)
+		if err != nil {
+			if errors.IsNotFound(err) {
+				return nil
+			}
+			return err
+		}
+
 	} else if err != nil {
 		log.Error(err, "Error while trying to create Knative Build", "namespace", deployBuild.Namespace, "name", deployBuild.Name)
 		return err
 	}
 
-	if !reflect.DeepEqual(deployBuild.Spec, foundBuild.Spec) {
-		foundBuild.Spec = deployBuild.Spec
-		log.Info("Updating Knative Build", "namespace", deployBuild.Namespace, "name", deployBuild.Name)
-		err = r.Update(context.TODO(), foundBuild)
+	if !reflect.DeepEqual(deployBuild.Spec, foundBuild.Spec) && !compareBuildImages(foundBuild, imageName) {
+		// TODO Investigate
+		// Build is not being updated. Changing the status and the spec is not triggering the creation of a new Build Pod.
+		// The Build Pod is in state completed once the image is pushed. This state won't change a new Pod needs to be created.
+		// It should be created once the status of the Build is updated to Status{}.
+		// The Build Controller looks for Status.Cluster.PodName and if it is empty the creates a new Pod.
+		// The code bellow delete the old Pod and update the Build object with the new spec and status empty.
+		// However this is not working as expected.
+
+		//// Get Build Pod
+		//buildPodName := foundBuild.Status.Cluster.PodName
+		//buildPod := &corev1.Pod{}
+		//err := r.Get(context.TODO(), types.NamespacedName{Name: buildPodName, Namespace: foundBuild.Namespace}, buildPod)
+		//if err != nil && errors.IsNotFound(err) {
+		//	log.Error(err, "POD NOT FOUND", "buildPodName", buildPodName)
+		//	// Do nothing
+		//}
+		//
+		//// Try to Build Pod
+		//if buildPod.Name == buildPodName {
+		//	if err := r.Delete(context.TODO(), buildPod); ignoreNotFound(err) != nil {
+		//		log.Error(err, "Unable to delete active Build Pod", "buildPodName", buildPodName)
+		//		// Do nothing
+		//	}
+		//}
+		//
+		//// Update Build
+		//foundBuild = foundBuild.DeepCopy()
+		//foundBuild.Status = deployBuild.Status
+		//foundBuild.Spec = deployBuild.Spec
+		//if err := r.Update(context.TODO(), foundBuild); ignoreNotFound(err) != nil {
+		//	return err
+		//}
+		//
+		//updatedBuild := &buildv1alpha1.Build{}
+		//if err := r.Get(context.TODO(), types.NamespacedName{Name: deployBuild.Name, Namespace: deployBuild.Namespace}, updatedBuild); ignoreNotFound(err) != nil {
+		//	log.Error(err, "Unable to read the updated Knative Build", "namespace", deployBuild.Namespace, "name", deployBuild.Name)
+		//	return err
+		//}
+		//
+		//if updatedBuild.Status.Cluster != nil && updatedBuild.Status.Cluster.PodName != "" {
+		//	if buildPod.Name == updatedBuild.Status.Cluster.PodName {
+		//		log.Info("old build pod still there ----------------", "podName", updatedBuild.Status.Cluster.PodName)
+		//	} else {
+		//		log.Info("new build pod created -------------------", "podName", updatedBuild.Status.Cluster.PodName)
+		//	}
+		//}
+
+		// TODO - WORKAROUND: The function bellow delete, create and get a new Build object with the new spec. It is not the desire solution.
+		err := r.updateBuildFunctionImage(foundBuild, deployBuild, fn)
 		if err != nil {
 			return err
 		}
 	}
+
+	return nil
+}
+
+func compareBuildImages(foundBuild *buildv1alpha1.Build, imageName string) bool {
+	if len(foundBuild.Spec.Template.Arguments) > 0 {
+		args := foundBuild.Spec.Template.Arguments
+		for _, arg := range args {
+			if arg.Name == "IMAGE" && arg.Value == imageName {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// Update Build object
+func (r *ReconcileFunction) updateBuildFunctionImage(foundBuild *buildv1alpha1.Build, deployBuild *buildv1alpha1.Build, fn *runtimev1alpha1.Function) error {
+
+	err := r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionUpdating)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+
+	// Delete already existing Build with the old image-
+	// foundBuild = foundBuild.DeepCopy()
+	log.Info("Deleteing Knative Build", "namespace", foundBuild.Namespace, "name", foundBuild.Name)
+	err = r.Delete(context.TODO(), foundBuild)
+	if err != nil && !errors.IsNotFound(err) {
+		return err
+	}
+
+	// create new Build with the new updated image
+	log.Info("Creating Knative Build", "namespace", deployBuild.Namespace, "name", deployBuild.Name)
+	err = r.Create(context.TODO(), deployBuild)
+	if err != nil && !errors.IsNotFound(err) {
+		return err
+	}
+
+	// Check if the Build instance can be get it.
+	err = r.Get(context.TODO(), types.NamespacedName{Name: deployBuild.Name, Namespace: deployBuild.Namespace}, deployBuild)
+	if err != nil && !errors.IsNotFound(err) {
+		log.Error(err, "Unable to read the updated Knative Build", "namespace", deployBuild.Namespace, "name", deployBuild.Name)
+		return err
+	}
+
+	log.Info("Updated Knative Build", "namespace", deployBuild.Namespace, "name", deployBuild.Name)
 
 	return nil
 }
@@ -415,112 +593,138 @@ func (r *ReconcileFunction) serveFunction(rnInfo *runtimeUtil.RuntimeInfo, found
 		if err != nil {
 			return err
 		}
+
+		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionDeploying)
+		if err != nil {
+			if errors.IsNotFound(err) {
+				return nil
+			}
+			return err
+		}
+
 		return nil
 	} else if err != nil {
 		log.Error(err, "Error while trying to create Knative Service", "namespace", deployService.Namespace, "name", deployService.Name)
 		return err
 	}
 
-	if !reflect.DeepEqual(deployService.Spec, foundService.Spec) {
+	if !reflect.DeepEqual(deployService.Spec, foundService.Spec) && !compareServiceImage(foundService, imageName, fn) {
+
 		foundService.Spec = deployService.Spec
+		foundService.Status = deployService.Status
+
 		log.Info("Updating Knative Service", "namespace", deployService.Namespace, "name", deployService.Name)
 		err = r.Update(context.TODO(), foundService)
 		if err != nil {
 			return err
 		}
-	}
 
-	return nil
-}
+		log.Info("Updated Knative Service", "namespace", deployService.Namespace, "name", deployService.Name)
 
-func (r *ReconcileFunction) getFunctionCondition(fn *runtimev1alpha1.Function) error {
-	var condition runtimev1alpha1.FunctionCondition
-	var errorRtn error
-
-	// get Knative Service
-	foundService := &servingv1alpha1.Service{}
-	err := r.Get(context.TODO(), types.NamespacedName{Name: fn.Name, Namespace: fn.Namespace}, foundService)
-	if err != nil {
-		log.Error(err, "Error while trying to get Function Condition", "namespace", fn.Namespace, "name", fn.Name)
-		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionError)
+		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionDeploying)
 		if err != nil {
+			if errors.IsNotFound(err) {
+				return nil
+			}
 			return err
 		}
 
 	}
 
-	// get Knative Build
-	foundBuild := &buildv1alpha1.Build{}
-	err = r.Get(context.TODO(), types.NamespacedName{Name: fn.Name, Namespace: fn.Namespace}, foundBuild)
-	if err != nil {
-		log.Error(err, "Error while trying to get Function Condition", "namespace", fn.Namespace, "name", fn.Name)
-		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionError)
-		if err != nil {
-			errorRtn = fmt.Errorf("function Condition (Build) %s: Reconcile will executed call again.", condition)
-		}
-
-	}
-
-	if len(foundBuild.Status.Conditions) > 0 {
-		conditions := foundBuild.Status.Conditions
-		for _, cond := range conditions {
-			if cond.Status == corev1.ConditionUnknown {
-
-				condition = runtimev1alpha1.FunctionConditionDeploying
-				errorRtn = fmt.Errorf("function Condition (Build) %s: Reconcile will executed call again.", condition)
-
-			}
-		}
-
-	}
-
-	errorRtn = nil
-	//ServiceConditionRoutesReady
-	//ServiceConditionReady
-	//ServiceConditionConfigurationsReady
-	if len(foundService.Status.Conditions) > 0 {
-		conditions := foundService.Status.Conditions
-		for _, cond := range conditions {
-			if cond.Status == corev1.ConditionTrue && cond.Type == servingv1alpha1.ServiceConditionRoutesReady {
-
-				condition = runtimev1alpha1.FunctionConditionRunning
-
-			} else if cond.Status == corev1.ConditionUnknown {
-
-				condition = runtimev1alpha1.FunctionConditionDeploying
-				errorRtn = fmt.Errorf("function Condition (Serving) %s: . Reconcile will executed call again.", condition)
-
-			} else {
-
-				condition = runtimev1alpha1.FunctionConditionError
-				errorRtn = fmt.Errorf("function Condition (Serving) %s: Reconcile will executed call again.", condition)
-
-			}
-		}
-	}
-
-	err = r.updateFunctionStatus(fn, condition)
-	if err != nil {
-		return err
-	}
-
-	if errorRtn != nil {
-		return errorRtn
-	}
-
-	log.Info(fmt.Sprintf("Function status: %s", condition), "namespace", fn.Namespace, "name", fn.Name)
-
 	return nil
 }
 
-// Update the status of a function instance JSONPath: .status.condition
+func compareServiceImage(foundService *servingv1alpha1.Service, imageName string, fn *runtimev1alpha1.Function) bool {
+
+	if len(foundService.Spec.ConfigurationSpec.Template.Spec.RevisionSpec.PodSpec.Containers) > 0 {
+		args := foundService.Spec.ConfigurationSpec.Template.Spec.RevisionSpec.PodSpec.Containers
+		for _, arg := range args {
+			if arg.Image == imageName && strings.Contains(arg.Image, fn.Name) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// It defines if the function condition is running or deploying base on the status of the Knative service.
+// A function is running is if the Status of the Knative service has:
+// - the last created revision and the last ready revision are the same.
+// - the conditions service, route and configuration should have status true and type ready.
+// Update the status of the function base on the defined function condition.
+// For a function get the status error either the creation or update of the knative service or build must have failed.
+func (r *ReconcileFunction) getFunctionCondition(fn *runtimev1alpha1.Function) {
+
+	serviceReady := false
+	configurationsReady := false
+	routesReady := false
+
+	// Get Knative Service
+	foundService := &servingv1alpha1.Service{}
+	if err := r.Get(context.TODO(), types.NamespacedName{Name: fn.Name, Namespace: fn.Namespace}, foundService); ignoreNotFound(err) != nil {
+		log.Error(err, "Error while trying to get the Knative Service for the function Status", "namespace", fn.Namespace, "name", fn.Name)
+		return
+	}
+
+	// latest created and ready revisions share the same name.
+	if len(foundService.Status.DeprecatedDomain) > 0 && (foundService.Status.LatestCreatedRevisionName == foundService.Status.LatestReadyRevisionName) {
+
+		// Evaluates the status of the conditions
+		if len(foundService.Status.Conditions) == 3 {
+			conditions := foundService.Status.Conditions
+
+			for _, cond := range conditions {
+
+				if cond.Status == corev1.ConditionTrue {
+
+					if cond.Type == servingv1alpha1.ServiceConditionReady {
+						serviceReady = true
+					}
+
+					if cond.Type == servingv1alpha1.RouteConditionReady {
+						routesReady = true
+					}
+
+					if cond.Type == servingv1alpha1.ConfigurationConditionReady {
+						configurationsReady = true
+					}
+
+				}
+
+			}
+
+		}
+
+	}
+
+	// Update the function status base on the ksvc status
+	fnCondition := runtimev1alpha1.FunctionConditionDeploying
+	if configurationsReady && routesReady && serviceReady {
+
+		fnCondition = runtimev1alpha1.FunctionConditionRunning
+
+	}
+	r.updateFunctionStatus(fn, fnCondition)
+
+	log.Info(fmt.Sprintf("Function status: %s", fnCondition), "namespace", fn.Namespace, "name", fn.Name)
+
+}
+
+// Update the status of the function JSONPath: .status.condition
 func (r *ReconcileFunction) updateFunctionStatus(fn *runtimev1alpha1.Function, condition runtimev1alpha1.FunctionCondition) error {
 
 	fn.Status.Condition = condition
 	err := r.Status().Update(context.TODO(), fn)
-	if err != nil {
+	if err != nil && !errors.IsNotFound(err) {
 		return err
 	}
 
 	return nil
+}
+
+func ignoreNotFound(err error) error {
+	if errors.IsNotFound(err) {
+		return nil
+	}
+	return err
 }

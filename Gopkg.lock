@@ -253,7 +253,7 @@
   ]
   pruneopts = "T"
   revision = "002a41a30693d0a720ba34476336fc81ba299564"
-  version = "v0.6.0"
+  version = "v0.7.0"
 
 [[projects]]
   branch = "master"
@@ -286,7 +286,7 @@
   ]
   pruneopts = "T"
   revision = "0800b94fd42981b439f6a54b0c0cbedd23e58c32"
-  version = "v0.6.0"
+  version = "v0.7.0"
 
 [[projects]]
   digest = "1:3804a3a02964db8e6db3e5e7960ac1c1a9b12835642dd4f4ac4e56c749ec73eb"

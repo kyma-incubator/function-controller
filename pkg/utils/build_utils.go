@@ -51,7 +51,7 @@ var buildTimeout = os.Getenv("BUILD_TIMEOUT")
 
 var defaultMode = int32(420)
 
-func NewBuild(rnInfo *RuntimeInfo, fn *runtimev1alpha1.Function, imageName string) *Build {
+func NewBuild(rnInfo *RuntimeInfo, fn *runtimev1alpha1.Function, imageName string, buildTemplateName string) *Build {
 
 	argsMap := make(map[string]string)
 	argsMap["IMAGE"] = imageName
@@ -69,7 +69,7 @@ func NewBuild(rnInfo *RuntimeInfo, fn *runtimev1alpha1.Function, imageName strin
 		Name:               fn.Name,
 		Namespace:          fn.Namespace,
 		ServiceAccountName: rnInfo.ServiceAccount,
-		BuildtemplateName:  "function-kaniko",
+		BuildtemplateName:  buildTemplateName,
 		Args:               argsMap,
 		Envs:               envMap,
 		Timeout:            timeout,
