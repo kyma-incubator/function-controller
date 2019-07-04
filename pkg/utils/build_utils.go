@@ -5,7 +5,6 @@ import (
 	"time"
 
 	buildv1alpha1 "github.com/knative/build/pkg/apis/build/v1alpha1"
-	buildClient "github.com/knative/build/pkg/client/clientset/versioned"
 	runtimev1alpha1 "github.com/kyma-incubator/runtime/pkg/apis/runtime/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -200,19 +199,3 @@ func GetBuildTemplateSpec(fn *runtimev1alpha1.Function) buildv1alpha1.BuildTempl
 	return bt
 }
 
-func InitBuildConfig() (*buildClient.Clientset, error) {
-	kubeConfig := InitKubeConfig()
-
-	bc, err := buildClient.NewForConfig(kubeConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	// Ensure the knative-build CRD is deployed
-	_, err = bc.BuildV1alpha1().Builds("").List(metav1.ListOptions{Limit: 1})
-	if err != nil {
-		return nil, err
-	}
-
-	return bc, nil
-}
