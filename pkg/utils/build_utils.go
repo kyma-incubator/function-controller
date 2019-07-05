@@ -10,27 +10,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-/*
-apiVersion: build.knative.dev/v1alpha1
-kind: Build
-metadata:
-  name: sample
-spec:
-  serviceAccountName: runtime-controller
-  template:
-    name: function-kaniko
-    kind: BuildTemplate
-    arguments:
-      - name: IMAGE
-        value: sample:latest
-      - name: DOCKERFILE
-        value: dockerfile-nodejs-8
-  volumes:
-  - configmap:
-      name: sample
-    name: source
-*/
-
 type Build struct {
 	Name               string
 	Namespace          string
