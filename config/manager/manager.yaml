@@ -55,7 +55,9 @@ spec:
           - name: SECRET_NAME
             value: $(WEBHOOK_SECRET_NAME)
           - name: CONTROLLER_CONFIGMAP_NS
-            value: "runtime-system"
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
           - name: BUILD_TIMEOUT
             value: "20"
         resources:

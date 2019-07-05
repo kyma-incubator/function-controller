@@ -14,7 +14,7 @@ spec:
     spec:
       serviceAccount: runtime-controller
       containers:
-      # Change the value of image field below to your controller image URL
-      - image: runtime-controller:latest
-        imagePullPolicy: IfNotPresent
-        name: manager-role
+        # gets changed by sed command when running `docker-build`
+        - image: ""
+          name: manager
+          imagePullPolicy: Always

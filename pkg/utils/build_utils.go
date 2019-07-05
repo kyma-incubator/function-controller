@@ -177,4 +177,3 @@ func GetBuildTemplateSpec(fn *runtimev1alpha1.Function) buildv1alpha1.BuildTempl
 
 	return bt
 }
-

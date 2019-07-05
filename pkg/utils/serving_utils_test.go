@@ -1,12 +1,12 @@
 package utils_test
 
 import (
-	"testing"
-	runtimev1alpha1 "github.com/kyma-incubator/runtime/pkg/apis/runtime/v1alpha1"
 	"github.com/ghodss/yaml"
+	runtimev1alpha1 "github.com/kyma-incubator/runtime/pkg/apis/runtime/v1alpha1"
+	"github.com/kyma-incubator/runtime/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"github.com/kyma-incubator/runtime/pkg/utils"
+	"testing"
 )
 
 func TestGetServiceSpec(t *testing.T) {

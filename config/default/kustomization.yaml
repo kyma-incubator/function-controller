@@ -30,9 +30,9 @@ resources:
 
 patches:
 # patch for prod:
-# - manager_image_patch.yaml
+- manager_image_patch.yaml
 # patch for dev:
-- manager_image_patch_dev.yaml
+# - manager_image_patch_dev.yaml
   # Protect the /metrics endpoint by putting it behind auth.
   # Only one of manager_auth_proxy_patch.yaml and
   # manager_prometheus_metrics_patch.yaml should be enabled.
@@ -51,3 +51,9 @@ vars:
     kind: Secret
     name: webhook-server-secret
     apiVersion: v1
+
+- name: NAMESPACE
+  objref:
+    apiVersion: apps/v1beta1
+    kind: Namespace
+    name: somename
