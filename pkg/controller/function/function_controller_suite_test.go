@@ -42,6 +42,7 @@ func TestMain(m *testing.M) {
 		Config:            cfg,
 		CRDDirectoryPaths: []string{filepath.Join("..", "..", "..", "config", "crds")},
 	}
+
 	logf.SetLogger(logf.ZapLogger(false))
 	apis.AddToScheme(scheme.Scheme)
 
