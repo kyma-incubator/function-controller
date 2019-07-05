@@ -470,45 +470,6 @@ func (r *ReconcileFunction) buildFunctionImage(rnInfo *runtimeUtil.RuntimeInfo, 
 		// The code bellow delete the old Pod and update the Build object with the new spec and status empty.
 		// However this is not working as expected.
 
-		//// Get Build Pod
-		//buildPodName := foundBuild.Status.Cluster.PodName
-		//buildPod := &corev1.Pod{}
-		//err := r.Get(context.TODO(), types.NamespacedName{Name: buildPodName, Namespace: foundBuild.Namespace}, buildPod)
-		//if err != nil && errors.IsNotFound(err) {
-		//	log.Error(err, "POD NOT FOUND", "buildPodName", buildPodName)
-		//	// Do nothing
-		//}
-		//
-		//// Try to Build Pod
-		//if buildPod.Name == buildPodName {
-		//	if err := r.Delete(context.TODO(), buildPod); ignoreNotFound(err) != nil {
-		//		log.Error(err, "Unable to delete active Build Pod", "buildPodName", buildPodName)
-		//		// Do nothing
-		//	}
-		//}
-		//
-		//// Update Build
-		//foundBuild = foundBuild.DeepCopy()
-		//foundBuild.Status = deployBuild.Status
-		//foundBuild.Spec = deployBuild.Spec
-		//if err := r.Update(context.TODO(), foundBuild); ignoreNotFound(err) != nil {
-		//	return err
-		//}
-		//
-		//updatedBuild := &buildv1alpha1.Build{}
-		//if err := r.Get(context.TODO(), types.NamespacedName{Name: deployBuild.Name, Namespace: deployBuild.Namespace}, updatedBuild); ignoreNotFound(err) != nil {
-		//	log.Error(err, "Unable to read the updated Knative Build", "namespace", deployBuild.Namespace, "name", deployBuild.Name)
-		//	return err
-		//}
-		//
-		//if updatedBuild.Status.Cluster != nil && updatedBuild.Status.Cluster.PodName != "" {
-		//	if buildPod.Name == updatedBuild.Status.Cluster.PodName {
-		//		log.Info("old build pod still there ----------------", "podName", updatedBuild.Status.Cluster.PodName)
-		//	} else {
-		//		log.Info("new build pod created -------------------", "podName", updatedBuild.Status.Cluster.PodName)
-		//	}
-		//}
-
 		// TODO - WORKAROUND: The function bellow delete, create and get a new Build object with the new spec. It is not the desire solution.
 		err := r.updateBuildFunctionImage(foundBuild, deployBuild, fn)
 		if err != nil {
