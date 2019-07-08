@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	buildv1alpha1 "github.com/knative/build/pkg/apis/build/v1alpha1"
+	duckv1alpha1 "github.com/knative/pkg/apis/duck/v1alpha1"
 	servingv1alpha1 "github.com/knative/serving/pkg/apis/serving/v1alpha1"
 	runtimev1alpha1 "github.com/kyma-incubator/runtime/pkg/apis/runtime/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -198,7 +199,6 @@ func (r *ReconcileFunction) Reconcile(request reconcile.Request) (reconcile.Resu
 
 		return reconcile.Result{}, err
 	}
-	log.Info("get BuildTemplate [done]", "function_name:", fn.Name)
 
 	if err := r.buildFunctionImage(rnInfo, fn, imageName); err != nil {
 		// status of the functon must change to error.
@@ -206,17 +206,14 @@ func (r *ReconcileFunction) Reconcile(request reconcile.Request) (reconcile.Resu
 
 		return reconcile.Result{}, err
 	}
-	log.Info("build Function image [done]", "function_name:", fn.Name)
 
 	if err := r.serveFunction(rnInfo, foundCm, fn, imageName); err != nil {
 		// status of the functon must change to error.
 		r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionError)
 		return reconcile.Result{}, err
 	}
-	log.Info("serve function [done]", "function_name:", fn.Name)
 
 	r.getFunctionCondition(fn)
-	log.Info("Update Function Status [done]", "function_name:", fn.Name)
 
 	return reconcile.Result{}, nil
 
@@ -539,7 +536,7 @@ func (r *ReconcileFunction) serveFunction(rnInfo *runtimeUtil.RuntimeInfo, found
 			return err
 		}
 
-		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionServing)
+		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionDeploying)
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return nil
@@ -566,7 +563,7 @@ func (r *ReconcileFunction) serveFunction(rnInfo *runtimeUtil.RuntimeInfo, found
 
 		log.Info("Updated Knative Service", "namespace", deployService.Namespace, "name", deployService.Name)
 
-		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionServing)
+		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionDeploying)
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return nil
@@ -661,7 +658,7 @@ func (r *ReconcileFunction) getFunctionCondition(fn *runtimev1alpha1.Function) {
 	}
 
 	// Update the function status base on the ksvc status
-	fnCondition := runtimev1alpha1.FunctionConditionServing
+	fnCondition := runtimev1alpha1.FunctionConditionDeploying
 	if configurationsReady && routesReady && serviceReady {
 
 		fnCondition = runtimev1alpha1.FunctionConditionRunning

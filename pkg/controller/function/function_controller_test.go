@@ -239,7 +239,7 @@ func TestReconcile(t *testing.T) {
 	g.Expect(ksvcUpdated.Spec.ConfigurationSpec.Template.Spec.RevisionSpec.PodSpec.Containers[0].Image).
 		To(gomega.Equal(fmt.Sprintf("test/%s-%s:%s", "default", "foo", functionSha)))
 
-	g.Expect(fnUpdatedFetched.Status.Condition).To(gomega.Equal(runtimev1alpha1.FunctionConditionServing))
+	g.Expect(fnUpdatedFetched.Status.Condition).To(gomega.Equal(runtimev1alpha1.FunctionConditionDeploying))
 }
 
 // Test status of newly created function
