@@ -19,6 +19,7 @@ package function
 import (
 	"context"
 	"fmt"
+	duckv1alpha1 "github.com/knative/pkg/apis/duck/v1alpha1"
 	"os"
 	"reflect"
 	"strings"
@@ -610,28 +611,15 @@ func (r *ReconcileFunction) getFunctionCondition(fn *runtimev1alpha1.Function) {
 		return
 	}
 
-	//// Get Build Pod
-	if foundBuild.Status.Cluster != nil && len(foundBuild.Status.Cluster.PodName) > 0 {
-		buildPodName := foundBuild.Status.Cluster.PodName
-		buildPod := &corev1.Pod{}
-		if err := r.Get(context.TODO(), types.NamespacedName{Name: buildPodName, Namespace: fn.Namespace}, buildPod); ignoreNotFound(err) != nil {
-			log.Error(err, "Error Build Pod not found while trying to get it for the Function Status", "buildPodName", buildPodName, "namespace", fn.Namespace, "name", fn.Name)
+	// if build show error, set function status to error too
+	for _, condition := range foundBuild.Status.Conditions {
+		if condition.Type == duckv1alpha1.ConditionSucceeded && condition.Status == corev1.ConditionFalse {
+			err := r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionError)
+			if err != nil {
+				log.Error(err, "Error while trying to update the function Status", "namespace", fn.Namespace, "name", fn.Name)
+			}
 			return
 		}
-
-		if len(buildPod.Status.InitContainerStatuses) > 0 {
-			contStatus := buildPod.Status.InitContainerStatuses
-			for _, cont := range contStatus {
-				if cont.Name == buildAndPushStep && cont.State.Terminated == nil {
-					err := r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionBuilding)
-					if err != nil {
-						log.Error(err, "Error while trying to update the function Status", "namespace", fn.Namespace, "name", fn.Name)
-					}
-					return
-				}
-			}
-		}
-
 	}
 
 	// Get Knative Service
@@ -642,7 +630,7 @@ func (r *ReconcileFunction) getFunctionCondition(fn *runtimev1alpha1.Function) {
 	}
 
 	// latest created and ready revisions share the same name.
-	if len(foundService.Status.DeprecatedDomain) > 0 && (foundService.Status.LatestCreatedRevisionName == foundService.Status.LatestReadyRevisionName) {
+	if foundService.Status.LatestCreatedRevisionName == foundService.Status.LatestReadyRevisionName {
 
 		// Evaluates the status of the conditions
 		if len(foundService.Status.Conditions) == 3 {
