@@ -57,8 +57,8 @@ const (
 	FunctionConditionBuilding FunctionCondition = "Building"
 	// Indicates that function has an error condition. Either the Knative Build or the Serving failed.
 	FunctionConditionError FunctionCondition = "Error"
-	// Indicates that function has a serving condition. The knative service is being updated.
-	FunctionConditionServing FunctionCondition = "Serving"
+	// Indicates that function has a Deploying condition. The knative service is not is status ready yet.
+	FunctionConditionDeploying FunctionCondition = "Deploying"
 	// Indicates that there is a new image and function is being updated.
 	FunctionConditionUpdating FunctionCondition = "Updating"
 )

@@ -535,7 +535,7 @@ func (r *ReconcileFunction) serveFunction(rnInfo *runtimeUtil.RuntimeInfo, found
 			return err
 		}
 
-		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionServing)
+		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionDeploying)
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return nil
@@ -562,7 +562,7 @@ func (r *ReconcileFunction) serveFunction(rnInfo *runtimeUtil.RuntimeInfo, found
 
 		log.Info("Updated Knative Service", "namespace", deployService.Namespace, "name", deployService.Name)
 
-		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionServing)
+		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionDeploying)
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return nil
@@ -653,7 +653,7 @@ func (r *ReconcileFunction) getFunctionCondition(fn *runtimev1alpha1.Function) {
 	}
 
 	// latest created and ready revisions share the same name.
-	if len(foundService.Status.DeprecatedDomain) > 0 && (foundService.Status.LatestCreatedRevisionName == foundService.Status.LatestReadyRevisionName) {
+	if foundService.Status.LatestCreatedRevisionName == foundService.Status.LatestReadyRevisionName {
 
 		// Evaluates the status of the conditions
 		if len(foundService.Status.Conditions) == 3 {
@@ -684,7 +684,7 @@ func (r *ReconcileFunction) getFunctionCondition(fn *runtimev1alpha1.Function) {
 	}
 
 	// Update the function status base on the ksvc status
-	fnCondition := runtimev1alpha1.FunctionConditionServing
+	fnCondition := runtimev1alpha1.FunctionConditionDeploying
 	if configurationsReady && routesReady && serviceReady {
 
 		fnCondition = runtimev1alpha1.FunctionConditionRunning
