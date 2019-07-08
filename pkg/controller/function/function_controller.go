@@ -627,8 +627,6 @@ func (r *ReconcileFunction) getFunctionCondition(fn *runtimev1alpha1.Function) {
 					log.Error(err, "Error while trying to update the function Status", "namespace", fn.Namespace, "name", fn.Name)
 				}
 				return
-			} else {
-				log.Info(fmt.Sprintf("Build status: %s", cont.State.Terminated.Reason), "BuildPod:", buildPodName, "namespace", fn.Namespace, "name", fn.Name)
 			}
 		}
 	}
