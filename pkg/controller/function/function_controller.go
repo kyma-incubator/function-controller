@@ -611,24 +611,27 @@ func (r *ReconcileFunction) getFunctionCondition(fn *runtimev1alpha1.Function) {
 	}
 
 	//// Get Build Pod
-	buildPodName := foundBuild.Status.Cluster.PodName
-	buildPod := &corev1.Pod{}
-	if err := r.Get(context.TODO(), types.NamespacedName{Name: buildPodName, Namespace: fn.Namespace}, buildPod); ignoreNotFound(err) != nil {
-		log.Error(err, "Error Build Pod not found while trying to get it for the Function Status", "buildPodName", buildPodName, "namespace", fn.Namespace, "name", fn.Name)
-		return
-	}
+	if foundBuild.Status.Cluster != nil && len(foundBuild.Status.Cluster.PodName) > 0 {
+		buildPodName := foundBuild.Status.Cluster.PodName
+		buildPod := &corev1.Pod{}
+		if err := r.Get(context.TODO(), types.NamespacedName{Name: buildPodName, Namespace: fn.Namespace}, buildPod); ignoreNotFound(err) != nil {
+			log.Error(err, "Error Build Pod not found while trying to get it for the Function Status", "buildPodName", buildPodName, "namespace", fn.Namespace, "name", fn.Name)
+			return
+		}
 
-	if len(buildPod.Status.InitContainerStatuses) > 0 {
-		contStatus := buildPod.Status.InitContainerStatuses
-		for _, cont := range contStatus {
-			if cont.Name == buildAndPushStep && cont.State.Terminated == nil {
-				err := r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionBuilding)
-				if err != nil {
-					log.Error(err, "Error while trying to update the function Status", "namespace", fn.Namespace, "name", fn.Name)
+		if len(buildPod.Status.InitContainerStatuses) > 0 {
+			contStatus := buildPod.Status.InitContainerStatuses
+			for _, cont := range contStatus {
+				if cont.Name == buildAndPushStep && cont.State.Terminated == nil {
+					err := r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionBuilding)
+					if err != nil {
+						log.Error(err, "Error while trying to update the function Status", "namespace", fn.Namespace, "name", fn.Name)
+					}
+					return
 				}
-				return
 			}
 		}
+
 	}
 
 	// Get Knative Service
