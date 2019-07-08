@@ -600,12 +600,6 @@ func (r *ReconcileFunction) getFunctionCondition(fn *runtimev1alpha1.Function) {
 	configurationsReady := false
 	routesReady := false
 
-	foundRoute := &servingv1alpha1.Route{}
-	if err := r.Get(context.TODO(), types.NamespacedName{Name: fn.Name, Namespace: fn.Namespace}, foundRoute); ignoreNotFound(err) != nil {
-		log.Error(err, "Error while trying to get the Knative Route for the Function Status", "namespace", fn.Namespace, "name", fn.Name)
-		return
-	}
-
 	// Get the status of the Build and Build Pod
 	foundBuild := &buildv1alpha1.Build{}
 	if err := r.Get(context.TODO(), types.NamespacedName{Name: fn.Name, Namespace: fn.Namespace}, foundBuild); ignoreNotFound(err) != nil {

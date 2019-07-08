@@ -502,27 +502,3 @@ func TestCreateFunctionHandlerMapNoDependencies(t *testing.T) {
 	}
 	g.Expect(functionHandlerMap).To(gomega.Equal(mapx))
 }
-
-func TestCreateFunctionCreatedAndDeleted(t *testing.T) {
-	g := gomega.NewGomegaWithT(t)
-
-	mgr, err := manager.New(cfg, manager.Options{})
-	g.Expect(err).NotTo(gomega.HaveOccurred())
-	c := mgr.GetClient()
-
-	function := runtimev1alpha1.Function{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "function",
-			Namespace: "default",
-		},
-	}
-
-	reconcileFunction := &ReconcileFunction{Client: c, scheme: scheme.Scheme}
-
-	g.Expect(c.Create(context.TODO(), &function)).Should(gomega.Succeed())
-
-	reconcileFunction.getFunctionCondition(&function)
-
-	g.Expect(c.Delete(context.TODO(), &function)).Should(gomega.Succeed())
-
-}
