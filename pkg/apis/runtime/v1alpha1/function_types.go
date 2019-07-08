@@ -49,13 +49,17 @@ type FunctionSpec struct {
 type FunctionCondition string
 
 const (
+	// Indicates that function has an unknown condition.
+	FunctionConditionUnknown FunctionCondition = "Unknown"
 	// Indicates that function has a running condition.
 	FunctionConditionRunning FunctionCondition = "Running"
-	// Indicates that function has an error condition.
+	// Indicates that function has an Building condition. It waits for the Build Pod get the status completed.
+	FunctionConditionBuilding FunctionCondition = "Building"
+	// Indicates that function has an error condition. Either the Knative Build or the Serving failed.
 	FunctionConditionError FunctionCondition = "Error"
-	// Indicates that function has a deploying condition.
-	FunctionConditionDeploying FunctionCondition = "Deploying"
-	// Indicates that there is a new image and function needs to be updated.
+	// Indicates that function has a serving condition. The knative service is being updated.
+	FunctionConditionServing FunctionCondition = "Serving"
+	// Indicates that there is a new image and function is being updated.
 	FunctionConditionUpdating FunctionCondition = "Updating"
 )
 

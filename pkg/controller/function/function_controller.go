@@ -72,24 +72,14 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		return err
 	}
 
-	// Watch for changes to Build
-	err = c.Watch(&source.Kind{Type: &buildv1alpha1.Build{}}, &handler.EnqueueRequestForObject{})
-	if err != nil {
-		return err
-	}
-
 	// Watch for changes to Service
 	err = c.Watch(&source.Kind{Type: &servingv1alpha1.Service{}}, &handler.EnqueueRequestForObject{})
 	if err != nil {
 		return err
 	}
 
-	err = c.Watch(&source.Kind{Type: &servingv1alpha1.Route{}}, &handler.EnqueueRequestForObject{})
-	if err != nil {
-		return err
-	}
-
-	err = c.Watch(&source.Kind{Type: &servingv1alpha1.Configuration{}}, &handler.EnqueueRequestForObject{})
+	// Watch for changes to Build
+	err = c.Watch(&source.Kind{Type: &buildv1alpha1.Build{}}, &handler.EnqueueRequestForObject{})
 	if err != nil {
 		return err
 	}
@@ -196,13 +186,12 @@ func (r *ReconcileFunction) Reconcile(request reconcile.Request) (reconcile.Resu
 
 	// Create function's image name
 	hash := sha256.New()
-	print("foundCM: %v", foundCm)
 	hash.Write([]byte(foundCm.Data["handler.js"] + foundCm.Data["package.json"]))
 	functionSha := fmt.Sprintf("%x", hash.Sum(nil))
 	imageName := fmt.Sprintf("%s/%s-%s:%s", rnInfo.RegistryInfo, fn.Namespace, fn.Name, functionSha)
 	log.Info("function image", "namespace:", fn.Namespace, "name:", fn.Name, "imageName:", imageName)
 
-	if err := r.getFunctionBuildTemplate(rnInfo, fnConfig, fn); err != nil {
+	if err := r.getFunctionBuildTemplate(fn); err != nil {
 		// status of the functon must change to error.
 		r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionError)
 
@@ -210,7 +199,7 @@ func (r *ReconcileFunction) Reconcile(request reconcile.Request) (reconcile.Resu
 	}
 	log.Info("get BuildTemplate [done]", "function_name:", fn.Name)
 
-	if err := r.buildFunctionImage(rnInfo, fnConfig, fn, imageName); err != nil {
+	if err := r.buildFunctionImage(rnInfo, fn, imageName); err != nil {
 		// status of the functon must change to error.
 		r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionError)
 
@@ -265,7 +254,7 @@ func (r *ReconcileFunction) getFunctionInstance(request reconcile.Request, fn *r
 
 	if fn.Status.Condition == "" {
 		// As the instance of the new function was found. It status is updated.
-		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionDeploying)
+		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionUnknown)
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return nil
@@ -354,7 +343,7 @@ func (r *ReconcileFunction) updateFunctionConfigMap(foundCm *corev1.ConfigMap, d
 
 }
 
-func (r *ReconcileFunction) getFunctionBuildTemplate(rnInfo *runtimeUtil.RuntimeInfo, fnConfig *corev1.ConfigMap, fn *runtimev1alpha1.Function) error {
+func (r *ReconcileFunction) getFunctionBuildTemplate(fn *runtimev1alpha1.Function) error {
 
 	buildTemplateNamespace := fn.Namespace
 
@@ -386,7 +375,7 @@ func (r *ReconcileFunction) getFunctionBuildTemplate(rnInfo *runtimeUtil.Runtime
 
 		}
 
-		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionDeploying)
+		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionBuilding)
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return nil
@@ -414,7 +403,7 @@ func (r *ReconcileFunction) getFunctionBuildTemplate(rnInfo *runtimeUtil.Runtime
 			return err
 		}
 
-		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionDeploying)
+		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionBuilding)
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return nil
@@ -427,7 +416,7 @@ func (r *ReconcileFunction) getFunctionBuildTemplate(rnInfo *runtimeUtil.Runtime
 	return nil
 }
 
-func (r *ReconcileFunction) buildFunctionImage(rnInfo *runtimeUtil.RuntimeInfo, fnConfig *corev1.ConfigMap, fn *runtimev1alpha1.Function, imageName string) error {
+func (r *ReconcileFunction) buildFunctionImage(rnInfo *runtimeUtil.RuntimeInfo, fn *runtimev1alpha1.Function, imageName string) error {
 
 	// Create a new Build data structure
 	build := runtimeUtil.NewBuild(rnInfo, fn, imageName, buildTemplateName)
@@ -447,7 +436,7 @@ func (r *ReconcileFunction) buildFunctionImage(rnInfo *runtimeUtil.RuntimeInfo, 
 			return err
 		}
 
-		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionDeploying)
+		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionBuilding)
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return nil
@@ -519,13 +508,6 @@ func (r *ReconcileFunction) updateBuildFunctionImage(foundBuild *buildv1alpha1.B
 		return err
 	}
 
-	// Check if the Build instance can be get it.
-	err = r.Get(context.TODO(), types.NamespacedName{Name: deployBuild.Name, Namespace: deployBuild.Namespace}, deployBuild)
-	if err != nil && !errors.IsNotFound(err) {
-		log.Error(err, "Unable to read the updated Knative Build", "namespace", deployBuild.Namespace, "name", deployBuild.Name)
-		return err
-	}
-
 	log.Info("Updated Knative Build", "namespace", deployBuild.Namespace, "name", deployBuild.Name)
 
 	return nil
@@ -556,7 +538,7 @@ func (r *ReconcileFunction) serveFunction(rnInfo *runtimeUtil.RuntimeInfo, found
 			return err
 		}
 
-		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionDeploying)
+		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionServing)
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return nil
@@ -583,7 +565,7 @@ func (r *ReconcileFunction) serveFunction(rnInfo *runtimeUtil.RuntimeInfo, found
 
 		log.Info("Updated Knative Service", "namespace", deployService.Namespace, "name", deployService.Name)
 
-		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionDeploying)
+		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionServing)
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return nil
@@ -620,6 +602,33 @@ func (r *ReconcileFunction) getFunctionCondition(fn *runtimev1alpha1.Function) {
 	serviceReady := false
 	configurationsReady := false
 	routesReady := false
+
+	// Get the status of the Build and Build Pod
+	foundBuild := &buildv1alpha1.Build{}
+	if err := r.Get(context.TODO(), types.NamespacedName{Name: fn.Name, Namespace: fn.Namespace}, foundBuild); ignoreNotFound(err) != nil {
+		log.Error(err, "Error while trying to get the Knative Build for the Function Status", "namespace", fn.Namespace, "name", fn.Name)
+		return
+	}
+
+	//// Get Build Pod
+	buildPodName := foundBuild.Status.Cluster.PodName
+	buildPod := &corev1.Pod{}
+	if err := r.Get(context.TODO(), types.NamespacedName{Name: buildPodName, Namespace: fn.Namespace}, buildPod); ignoreNotFound(err) != nil {
+		log.Error(err, "Error Build Pod not found while trying to get it for the Function Status", "buildPodName", buildPodName, "namespace", fn.Namespace, "name", fn.Name)
+		return
+	}
+
+	if len(buildPod.Status.InitContainerStatuses) > 0 {
+		contStatus := buildPod.Status.InitContainerStatuses
+		for _, cont := range contStatus {
+			if cont.Name == buildAndPushStep && cont.State.Terminated == nil {
+				r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionBuilding)
+				return
+			} else {
+				log.Info(fmt.Sprintf("Build status: %s", cont.State.Terminated.Reason), "BuildPod:", buildPodName, "namespace", fn.Namespace, "name", fn.Name)
+			}
+		}
+	}
 
 	// Get Knative Service
 	foundService := &servingv1alpha1.Service{}
@@ -660,7 +669,7 @@ func (r *ReconcileFunction) getFunctionCondition(fn *runtimev1alpha1.Function) {
 	}
 
 	// Update the function status base on the ksvc status
-	fnCondition := runtimev1alpha1.FunctionConditionDeploying
+	fnCondition := runtimev1alpha1.FunctionConditionServing
 	if configurationsReady && routesReady && serviceReady {
 
 		fnCondition = runtimev1alpha1.FunctionConditionRunning
