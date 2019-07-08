@@ -19,13 +19,13 @@ package function
 import (
 	"context"
 	"fmt"
-	duckv1alpha1 "github.com/knative/pkg/apis/duck/v1alpha1"
 	"os"
 	"reflect"
 	"strings"
 
-	buildv1alpha1 "github.com/knative/build/pkg/apis/build/v1alpha1"
 	duckv1alpha1 "github.com/knative/pkg/apis/duck/v1alpha1"
+
+	buildv1alpha1 "github.com/knative/build/pkg/apis/build/v1alpha1"
 	servingv1alpha1 "github.com/knative/serving/pkg/apis/serving/v1alpha1"
 	runtimev1alpha1 "github.com/kyma-incubator/runtime/pkg/apis/runtime/v1alpha1"
 	corev1 "k8s.io/api/core/v1"

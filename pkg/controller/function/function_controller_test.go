@@ -464,7 +464,7 @@ func TestFunctionConditionServiceError(t *testing.T) {
 	g.Eventually(func() runtimev1alpha1.FunctionCondition {
 		reconcileFunction.getFunctionCondition(&function)
 		return function.Status.Condition
-	}).Should(gomega.Equal(runtimev1alpha1.FunctionConditionServing))
+	}).Should(gomega.Equal(runtimev1alpha1.FunctionConditionDeploying))
 }
 
 func TestCreateFunctionHandlerMap(t *testing.T) {
