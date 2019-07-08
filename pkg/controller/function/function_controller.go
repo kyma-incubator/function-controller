@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	buildv1alpha1 "github.com/knative/build/pkg/apis/build/v1alpha1"
+	duckv1alpha1 "github.com/knative/pkg/apis/duck/v1alpha1"
 	servingv1alpha1 "github.com/knative/serving/pkg/apis/serving/v1alpha1"
 	runtimev1alpha1 "github.com/kyma-incubator/runtime/pkg/apis/runtime/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -610,7 +611,21 @@ func (r *ReconcileFunction) getFunctionCondition(fn *runtimev1alpha1.Function) {
 		return
 	}
 
-	//// Get Build Pod
+	// Build status condition is type Succeeded status false
+	if len(foundBuild.Status.Conditions) > 0 {
+		conditions := foundBuild.Status.Conditions
+		for _, cond := range conditions {
+			if cond.Type == duckv1alpha1.ConditionSucceeded && cond.Status == corev1.ConditionFalse {
+				err := r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionError)
+				if err != nil {
+					log.Error(err, "Error while trying to update the function Status", "namespace", fn.Namespace, "name", fn.Name)
+				}
+				return
+			}
+		}
+	}
+
+	// Get Build Pod
 	if foundBuild.Status.Cluster != nil && len(foundBuild.Status.Cluster.PodName) > 0 {
 		buildPodName := foundBuild.Status.Cluster.PodName
 		buildPod := &corev1.Pod{}
