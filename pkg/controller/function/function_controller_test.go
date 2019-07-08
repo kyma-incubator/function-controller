@@ -238,7 +238,7 @@ func TestReconcile(t *testing.T) {
 	g.Expect(ksvcUpdated.Spec.ConfigurationSpec.Template.Spec.RevisionSpec.PodSpec.Containers[0].Image).
 		To(gomega.Equal(fmt.Sprintf("test/%s-%s:%s", "default", "foo", functionSha)))
 
-	//g.Expect(fnUpdatedFetched.Status.Condition).To(gomega.Equal(runtimev1alpha1.FunctionConditionRunning))
+	g.Expect(fnUpdatedFetched.Status.Condition).To(gomega.Equal(runtimev1alpha1.FunctionConditionServing))
 }
 
 // Test status of newly created function
@@ -322,7 +322,7 @@ func TestFunctionConditionServiceError(t *testing.T) {
 	g.Eventually(func() runtimev1alpha1.FunctionCondition {
 		reconcileFunction.getFunctionCondition(&function)
 		return function.Status.Condition
-	}).Should(gomega.Equal(runtimev1alpha1.FunctionConditionDeploying))
+	}).Should(gomega.Equal(runtimev1alpha1.FunctionConditionServing))
 }
 
 func TestCreateFunctionHandlerMap(t *testing.T) {

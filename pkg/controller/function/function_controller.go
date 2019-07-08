@@ -198,7 +198,6 @@ func (r *ReconcileFunction) Reconcile(request reconcile.Request) (reconcile.Resu
 
 		return reconcile.Result{}, err
 	}
-	log.Info("get BuildTemplate [done]", "function_name:", fn.Name)
 
 	if err := r.buildFunctionImage(rnInfo, fn, imageName); err != nil {
 		// status of the functon must change to error.
@@ -206,17 +205,14 @@ func (r *ReconcileFunction) Reconcile(request reconcile.Request) (reconcile.Resu
 
 		return reconcile.Result{}, err
 	}
-	log.Info("build Function image [done]", "function_name:", fn.Name)
 
 	if err := r.serveFunction(rnInfo, foundCm, fn, imageName); err != nil {
 		// status of the functon must change to error.
 		r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionError)
 		return reconcile.Result{}, err
 	}
-	log.Info("serve function [done]", "function_name:", fn.Name)
 
 	r.getFunctionCondition(fn)
-	log.Info("Update Function Status [done]", "function_name:", fn.Name)
 
 	return reconcile.Result{}, nil
 
