@@ -145,8 +145,13 @@ func (r *ReconcileFunction) Reconcile(request reconcile.Request) (reconcile.Resu
 
 	// Get Function instance
 	fn := &runtimev1alpha1.Function{}
-	_, err := r.getFunctionInstance(request, fn)
+	err := r.getFunctionInstance(request, fn)
 	if err != nil {
+		if errors.IsNotFound(err) {
+			// Object not found, return.  Created objects are automatically garbage collected.
+			// For additional cleanup logic use finalizers.
+			return reconcile.Result{}, nil
+		}
 		// status of the functon must change to error.
 		r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionError)
 
@@ -170,7 +175,7 @@ func (r *ReconcileFunction) Reconcile(request reconcile.Request) (reconcile.Resu
 	// Create Function's ConfigMap
 	foundCm := &corev1.ConfigMap{}
 	deployCm := &corev1.ConfigMap{}
-	err = r.createFunctionConfigMap(foundCm, deployCm, fn)
+	_, err = r.createFunctionConfigMap(foundCm, deployCm, fn)
 	if err != nil {
 		// status of the functon must change to error.
 		r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionError)
@@ -237,17 +242,12 @@ func (r *ReconcileFunction) getFunctionControllerConfiguration(fnConfig *corev1.
 }
 
 // Get the Function instance
-func (r *ReconcileFunction) getFunctionInstance(request reconcile.Request, fn *runtimev1alpha1.Function) (reconcile.Result, error) {
+func (r *ReconcileFunction) getFunctionInstance(request reconcile.Request, fn *runtimev1alpha1.Function) error {
 	// Get the Function instance
 	err := r.Get(context.TODO(), request.NamespacedName, fn)
 	if err != nil {
-		if errors.IsNotFound(err) {
-			// Object not found, return.  Created objects are automatically garbage collected.
-			// For additional cleanup logic use finalizers.
-			return reconcile.Result{}, nil
-		}
 		// Error reading the object - requeue the request.
-		return reconcile.Result{}, err
+		return err
 	}
 
 	log.Info("Function instance found:", "namespace", fn.Namespace, "name", fn.Name)
@@ -256,14 +256,11 @@ func (r *ReconcileFunction) getFunctionInstance(request reconcile.Request, fn *r
 		// As the instance of the new function was found. It status is updated.
 		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionUnknown)
 		if err != nil {
-			if errors.IsNotFound(err) {
-				return reconcile.Result{}, nil
-			}
-			return reconcile.Result{}, err
+			return err
 		}
 	}
 
-	return reconcile.Result{}, nil
+	return nil
 }
 
 func createFunctionHandlerMap(fn *runtimev1alpha1.Function) map[string]string {
