@@ -622,7 +622,10 @@ func (r *ReconcileFunction) getFunctionCondition(fn *runtimev1alpha1.Function) {
 		contStatus := buildPod.Status.InitContainerStatuses
 		for _, cont := range contStatus {
 			if cont.Name == buildAndPushStep && cont.State.Terminated == nil {
-				r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionBuilding)
+				err := r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionBuilding)
+				if err != nil {
+					log.Error(err, "Error while trying to update the function Status", "namespace", fn.Namespace, "name", fn.Name)
+				}
 				return
 			} else {
 				log.Info(fmt.Sprintf("Build status: %s", cont.State.Terminated.Reason), "BuildPod:", buildPodName, "namespace", fn.Namespace, "name", fn.Name)
@@ -675,7 +678,11 @@ func (r *ReconcileFunction) getFunctionCondition(fn *runtimev1alpha1.Function) {
 		fnCondition = runtimev1alpha1.FunctionConditionRunning
 
 	}
-	r.updateFunctionStatus(fn, fnCondition)
+	err := r.updateFunctionStatus(fn, fnCondition)
+	if err != nil {
+		log.Error(err, "Error while trying to update the function Status", "namespace", fn.Namespace, "name", fn.Name)
+		return
+	}
 
 	log.Info(fmt.Sprintf("Function status: %s", fnCondition), "namespace", fn.Namespace, "name", fn.Name)
 
