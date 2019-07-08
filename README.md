@@ -99,12 +99,13 @@ install knative
 
 ```bash
 kubectl apply --selector knative.dev/crd-install=true \
-   --filename https://github.com/knative/serving/releases/download/v0.6.0/serving.yaml \
-   --filename https://github.com/knative/build/releases/download/v0.6.0/build.yaml \
-   --filename https://github.com/knative/eventing/releases/download/v0.6.0/release.yaml \
-   --filename https://github.com/knative/eventing-sources/releases/download/v0.6.0/eventing-sources.yaml \
-   --filename https://github.com/knative/serving/releases/download/v0.6.0/monitoring.yaml \
-   --filename https://raw.githubusercontent.com/knative/serving/v0.6.0/third_party/config/build/clusterrole.yaml
+--filename https://github.com/knative/serving/releases/download/v0.6.1/serving.yaml \
+--filename https://github.com/knative/build/releases/download/v0.6.0/build.yaml \
+--filename https://github.com/knative/eventing/releases/download/v0.6.1/release.yaml \
+--filename https://github.com/knative/eventing-sources/releases/download/v0.6.0/eventing-sources.yaml \
+--filename https://github.com/knative/serving/releases/download/v0.6.1/monitoring.yaml \
+--filename https://raw.githubusercontent.com/knative/serving/v0.6.1/third_party/config/build/clusterrole.yaml
+
 ```
 
 install knative part2
@@ -169,25 +170,25 @@ make deploy
 Create sample function
 
 ```bash
-kubectl apply -f config/samples/runtime_v1alpha1_function.yaml -n REPLACE_BY_NAMESPACE
+kubectl apply -f config/samples/runtime_v1alpha1_function.yaml -n {NAMESPACE}
 ```
 
 search for function
 
 ```bash
-kubectl get functions -n REPLACE_BY_NAMESPACE
+kubectl get functions -n {NAMESPACE}
 ```
 
 ```bash
-kubectl get function -n REPLACE_BY_NAMESPACE
+kubectl get function -n {NAMESPACE}
 ```
 
 ```bash
-kubectl get fcn -n REPLACE_BY_NAMESPACE
+kubectl get fcn -n {NAMESPACE}
 ```
 
 access the function
 
 ```bash
-	curl -v -H "Host: $(kubectl get ksvc sample --output 'jsonpath={.status.domain}' -n REPLACE_BY_NAMESPACE)" http://$(minikube ip):$(kubectl get svc istio-ingressgateway --namespace istio-system --output 'jsonpath={.spec.ports[?(@.port==80)].nodePort}')
+	curl -v -H "Host: $(kubectl get ksvc sample --output 'jsonpath={.status.domain}' -n {NAMESPACE}" http://$(minikube ip):$(kubectl get svc istio-ingressgateway --namespace istio-system --output 'jsonpath={.spec.ports[?(@.port==80)].nodePort}')
 ```
