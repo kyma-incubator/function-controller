@@ -114,7 +114,7 @@ func TestReconcile(t *testing.T) {
 	mgr, err := manager.New(cfg, manager.Options{})
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 	c = mgr.GetClient()
-	recFn, requests := SetupTestReconcile(newReconciler(mgr))
+	recFn, requests, errors := SetupTestReconcile(newReconciler(mgr))
 	g.Expect(add(mgr, recFn)).NotTo(gomega.HaveOccurred())
 	stopMgr, mgrStopped := StartTestManager(mgr, g)
 	defer func() {
@@ -126,6 +126,10 @@ func TestReconcile(t *testing.T) {
 	g.Expect(c.Create(context.TODO(), fnConfig)).NotTo(gomega.HaveOccurred())
 	// create the actual function
 	g.Expect(c.Create(context.TODO(), fnCreated)).NotTo(gomega.HaveOccurred())
+	defer func() {
+		_ = c.Delete(context.TODO(), fnCreated)
+		_ = c.Delete(context.TODO(), fnConfig)
+	}()
 
 	// call reconcile function
 	g.Eventually(requests, timeout).Should(gomega.Receive(gomega.Equal(reconcile.Request{NamespacedName: types.NamespacedName{Name: "foo", Namespace: "default"}})))
@@ -240,19 +244,101 @@ func TestReconcile(t *testing.T) {
 		To(gomega.Equal(fmt.Sprintf("test/%s-%s:%s", "default", "foo", functionSha)))
 
 	g.Expect(fnUpdatedFetched.Status.Condition).To(gomega.Equal(runtimev1alpha1.FunctionConditionDeploying))
+
+	// tests use a shared etcd, we need to clean up
+	defer func() {
+		_ = c.Delete(context.TODO(), fnCreated)
+		_ = c.Delete(context.TODO(), ksvcUpdated)
+		_ = c.Delete(context.TODO(), fnConfig)
+	}()
+
+	// ensure no errors occurred in reconciler
+	g.Eventually(errors).ShouldNot(gomega.Receive(gomega.Succeed()))
+}
+
+// Test that deleting a function does not produce any errors
+func TestReconcileDeleteFunction(t *testing.T) {
+	g := gomega.NewGomegaWithT(t)
+	objectName := "test-reconcile-delete-function"
+
+	fnCreated := &runtimev1alpha1.Function{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      objectName,
+			Namespace: "default",
+		},
+		Spec: runtimev1alpha1.FunctionSpec{
+			Function:            "main() {asdfasdf}",
+			FunctionContentType: "plaintext",
+			Size:                "L",
+			Runtime:             "nodejs6",
+		},
+	}
+
+	fnConfig := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "fn-config",
+			Namespace: "default",
+		},
+		Data: map[string]string{
+			"dockerRegistry":     "test",
+			"serviceAccountName": "build-bot",
+			"runtimes": `[
+				{
+					"ID": "nodejs8",
+					"DockerFileName": "dockerfile-nodejs8",
+				}
+			]`,
+		},
+	}
+
+	// start manager
+	mgr, err := manager.New(cfg, manager.Options{})
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+	c = mgr.GetClient()
+	recFn, requests, errors := SetupTestReconcile(newReconciler(mgr))
+	g.Expect(add(mgr, recFn)).NotTo(gomega.HaveOccurred())
+	stopMgr, mgrStopped := StartTestManager(mgr, g)
+	defer func() {
+		close(stopMgr)
+		mgrStopped.Wait()
+	}()
+
+	// create configmap which holds settings required by the function controller
+	g.Expect(c.Create(context.TODO(), fnConfig)).NotTo(gomega.HaveOccurred())
+	// create the actual function
+	g.Expect(c.Create(context.TODO(), fnCreated)).NotTo(gomega.HaveOccurred())
+	defer func() {
+		_ = c.Delete(context.TODO(), fnConfig)
+		_ = c.Delete(context.TODO(), fnCreated)
+	}()
+
+	// call reconcile function
+	fmt.Print("waiting for reconcile function to be called")
+	g.Eventually(requests, timeout).Should(gomega.Receive(gomega.Equal(reconcile.Request{NamespacedName: types.NamespacedName{Name: objectName, Namespace: "default"}})))
+
+	// delete the actual function
+	g.Expect(c.Delete(context.TODO(), fnCreated)).NotTo(gomega.HaveOccurred())
+
+	// call reconcile function
+	fmt.Print("waiting for reconcile function to be called")
+	g.Eventually(requests, timeout).Should(gomega.Receive(gomega.Equal(reconcile.Request{NamespacedName: types.NamespacedName{Name: objectName, Namespace: "default"}})))
+
+	// ensure no errors occurred in reconciler
+	g.Eventually(errors).ShouldNot(gomega.Receive(gomega.Succeed()))
 }
 
 // Test status of newly created function
 func TestFunctionConditionNewFunction(t *testing.T) {
 	g := gomega.NewGomegaWithT(t)
 
+	objectName := "test-condition-new-function"
 	mgr, err := manager.New(cfg, manager.Options{})
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 	c := mgr.GetClient()
 
 	function := runtimev1alpha1.Function{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "function",
+			Name:      objectName,
 			Namespace: "default",
 		},
 	}
@@ -306,6 +392,10 @@ func TestFunctionConditionBuildError(t *testing.T) {
 	// create function and build
 	g.Expect(c.Create(context.TODO(), &function)).Should(gomega.Succeed())
 	g.Expect(c.Create(context.TODO(), &build)).Should(gomega.Succeed())
+	defer func() {
+		_ = c.Delete(context.TODO(), &function)
+		_ = c.Delete(context.TODO(), &build)
+	}()
 
 	// get build and update status
 	foundBuild := buildv1alpha1.Build{}
@@ -363,6 +453,10 @@ func TestFunctionConditionServiceSuccess(t *testing.T) {
 	// create function and build
 	g.Expect(c.Create(context.TODO(), &function)).Should(gomega.Succeed())
 	g.Expect(c.Create(context.TODO(), &service)).Should(gomega.Succeed())
+	defer func() {
+		_ = c.Delete(context.TODO(), &function)
+		_ = c.Delete(context.TODO(), &service)
+	}()
 
 	// get service and update status
 	foundService := servingv1alpha1.Service{}
@@ -431,6 +525,10 @@ func TestFunctionConditionServiceError(t *testing.T) {
 	// create function and build
 	g.Expect(c.Create(context.TODO(), &function)).Should(gomega.Succeed())
 	g.Expect(c.Create(context.TODO(), &service)).Should(gomega.Succeed())
+	defer func() {
+		_ = c.Delete(context.TODO(), &function)
+		_ = c.Delete(context.TODO(), &service)
+	}()
 
 	// get service and update status
 	foundService := servingv1alpha1.Service{}
