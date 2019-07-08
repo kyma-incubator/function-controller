@@ -143,6 +143,17 @@ func getEnvDefault(envName string, defaultValue string) string {
 // +kubebuilder:rbac:groups=";apps;extensions",resources=deployments,verbs=create;get;watch;update;delete;list;update;patch
 func (r *ReconcileFunction) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 
+	// Get Function instance
+	fn := &runtimev1alpha1.Function{}
+	_, err := r.getFunctionInstance(request, fn)
+	if err != nil {
+		// status of the functon must change to error.
+		r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionError)
+
+		log.Error(err, "Error reading Function instance", "namespace", request.Namespace, "name", request.Name)
+		return reconcile.Result{}, err
+	}
+
 	// Get Function Controller Configuration
 	fnConfig := &corev1.ConfigMap{}
 	if err := r.getFunctionControllerConfiguration(fnConfig); err != nil {
@@ -156,24 +167,15 @@ func (r *ReconcileFunction) Reconcile(request reconcile.Request) (reconcile.Resu
 		return reconcile.Result{}, err
 	}
 
-	// Get Function instance
-	fn := &runtimev1alpha1.Function{}
-	if err := r.getFunctionInstance(request, fn); err != nil {
-		// status of the functon must change to error.
-		r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionError)
-
-		log.Error(err, "Error reading Function instance", "namespace", request.Namespace, "name", request.Name)
-		return reconcile.Result{}, err
-	}
-
 	// Create Function's ConfigMap
 	foundCm := &corev1.ConfigMap{}
 	deployCm := &corev1.ConfigMap{}
-	if err := r.createFunctionConfigMap(foundCm, deployCm, fn); err != nil {
+	err = r.createFunctionConfigMap(foundCm, deployCm, fn)
+	if err != nil {
 		// status of the functon must change to error.
 		r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionError)
 
-		log.Error(err, "Error while trying to create the Function's ConfigMap", "namespace", deployCm.Namespace, "name", deployCm.Name)
+		log.Error(err, "function configmap can't be created. The function could have been deleted.", "namespace", deployCm.Namespace, "name", deployCm.Name)
 		return reconcile.Result{}, err
 	}
 
@@ -235,17 +237,17 @@ func (r *ReconcileFunction) getFunctionControllerConfiguration(fnConfig *corev1.
 }
 
 // Get the Function instance
-func (r *ReconcileFunction) getFunctionInstance(request reconcile.Request, fn *runtimev1alpha1.Function) error {
+func (r *ReconcileFunction) getFunctionInstance(request reconcile.Request, fn *runtimev1alpha1.Function) (reconcile.Result, error) {
 	// Get the Function instance
 	err := r.Get(context.TODO(), request.NamespacedName, fn)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// Object not found, return.  Created objects are automatically garbage collected.
 			// For additional cleanup logic use finalizers.
-			return nil
+			return reconcile.Result{}, nil
 		}
 		// Error reading the object - requeue the request.
-		return err
+		return reconcile.Result{}, err
 	}
 
 	log.Info("Function instance found:", "namespace", fn.Namespace, "name", fn.Name)
@@ -255,13 +257,13 @@ func (r *ReconcileFunction) getFunctionInstance(request reconcile.Request, fn *r
 		err = r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionUnknown)
 		if err != nil {
 			if errors.IsNotFound(err) {
-				return nil
+				return reconcile.Result{}, nil
 			}
-			return err
+			return reconcile.Result{}, err
 		}
 	}
 
-	return nil
+	return reconcile.Result{}, nil
 }
 
 func createFunctionHandlerMap(fn *runtimev1alpha1.Function) map[string]string {
@@ -280,7 +282,7 @@ func createFunctionHandlerMap(fn *runtimev1alpha1.Function) map[string]string {
 }
 
 // Create Function's ConfigMap
-func (r *ReconcileFunction) createFunctionConfigMap(foundCm *corev1.ConfigMap, deployCm *corev1.ConfigMap, fn *runtimev1alpha1.Function) error {
+func (r *ReconcileFunction) createFunctionConfigMap(foundCm *corev1.ConfigMap, deployCm *corev1.ConfigMap, fn *runtimev1alpha1.Function) (reconcile.Result, error) {
 
 	// Create Function Handler
 	deployCm.Data = createFunctionHandlerMap(fn)
@@ -293,25 +295,25 @@ func (r *ReconcileFunction) createFunctionConfigMap(foundCm *corev1.ConfigMap, d
 	}
 
 	if err := controllerutil.SetControllerReference(fn, deployCm, r.scheme); err != nil {
-		return err
+		return reconcile.Result{}, err
 	}
 
 	err := r.Get(context.TODO(), types.NamespacedName{Name: deployCm.Name, Namespace: deployCm.Namespace}, foundCm)
 	if err != nil && errors.IsNotFound(err) {
 		log.Info("Creating the Function's ConfigMap", "namespace", deployCm.Namespace, "name", deployCm.Name)
 		err = r.Create(context.TODO(), deployCm)
-		if err != nil {
-			return err
+		if errors.IsNotFound(err) {
+			return reconcile.Result{}, nil
 		}
+		return reconcile.Result{}, err
 
-		return nil
 	} else if err != nil {
-		return err
+		return reconcile.Result{}, err
 	}
 
 	log.Info("Function ConfigMap:", "namespace", deployCm.Namespace, "name", deployCm.Name)
 
-	return nil
+	return reconcile.Result{}, nil
 }
 
 // Update found Function's ConfigMap
@@ -600,6 +602,12 @@ func (r *ReconcileFunction) getFunctionCondition(fn *runtimev1alpha1.Function) {
 	serviceReady := false
 	configurationsReady := false
 	routesReady := false
+
+	foundRoute := &servingv1alpha1.Route{}
+	if err := r.Get(context.TODO(), types.NamespacedName{Name: fn.Name, Namespace: fn.Namespace}, foundRoute); ignoreNotFound(err) != nil {
+		log.Error(err, "Error while trying to get the Knative Route for the Function Status", "namespace", fn.Namespace, "name", fn.Name)
+		return
+	}
 
 	// Get the status of the Build and Build Pod
 	foundBuild := &buildv1alpha1.Build{}
