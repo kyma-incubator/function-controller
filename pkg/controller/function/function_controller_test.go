@@ -43,7 +43,7 @@ import (
 
 var c client.Client
 
-const timeout = time.Second * 20
+const timeout = time.Second * 60
 
 func TestReconcile(t *testing.T) {
 	g := gomega.NewGomegaWithT(t)
@@ -150,9 +150,18 @@ func TestReconcile(t *testing.T) {
 	// ensure container environment variables are correct
 	g.Expect(service.Spec.ConfigurationSpec.Template.Spec.RevisionSpec.PodSpec.Containers[0].Env).To(gomega.Equal(expectedEnv))
 
+	// Unique Build name
+	hash := sha256.New()
+	hash.Write([]byte(functionConfigMap.Data["handler.js"] + functionConfigMap.Data["package.json"]))
+	functionSha := fmt.Sprintf("%x", hash.Sum(nil))
+	shortSha := functionSha[0:5]
+	buildName := fmt.Sprintf("%s-%s", fnCreated.Name, shortSha)
+
 	// get the build object
 	build := &buildv1alpha1.Build{}
-	g.Eventually(func() error { return c.Get(context.TODO(), depKey, build) }, timeout).
+	g.Eventually(func() error {
+		return c.Get(context.TODO(), types.NamespacedName{Name: buildName, Namespace: "default"}, build)
+	}, timeout).
 		Should(gomega.Succeed())
 
 	// get the build template
@@ -236,10 +245,10 @@ func TestReconcile(t *testing.T) {
 	// ensure updated knative service has updated image
 	ksvcUpdated := &servingv1alpha1.Service{}
 	g.Expect(c.Get(context.TODO(), depKey, ksvcUpdated)).NotTo(gomega.HaveOccurred())
-	hash := sha256.New()
+	hash = sha256.New()
 	print("cmUpdated: %v", cmUpdated)
 	hash.Write([]byte(cmUpdated.Data["handler.js"] + cmUpdated.Data["package.json"]))
-	functionSha := fmt.Sprintf("%x", hash.Sum(nil))
+	functionSha = fmt.Sprintf("%x", hash.Sum(nil))
 	g.Expect(ksvcUpdated.Spec.ConfigurationSpec.Template.Spec.RevisionSpec.PodSpec.Containers[0].Image).
 		To(gomega.Equal(fmt.Sprintf("test/%s-%s:%s", "default", "foo", functionSha)))
 

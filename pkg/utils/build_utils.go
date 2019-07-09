@@ -10,7 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type Build struct {
+type BuildUtil struct {
 	Name               string
 	Namespace          string
 	ServiceAccountName string
@@ -29,7 +29,7 @@ var buildTimeout = os.Getenv("BUILD_TIMEOUT")
 
 var defaultMode = int32(420)
 
-func NewBuild(rnInfo *RuntimeInfo, fn *runtimev1alpha1.Function, imageName string, buildTemplateName string) *Build {
+func NewBuildUtil(rnInfo *RuntimeInfo, fn *runtimev1alpha1.Function, imageName string, buildTemplateName string, buildName string) *BuildUtil {
 
 	argsMap := make(map[string]string)
 	argsMap["IMAGE"] = imageName
@@ -43,8 +43,8 @@ func NewBuild(rnInfo *RuntimeInfo, fn *runtimev1alpha1.Function, imageName strin
 	}
 
 	// TODO: do we need the extra build struct or not ?
-	return &Build{
-		Name:               fn.Name,
+	return &BuildUtil{
+		Name:               buildName,
 		Namespace:          fn.Namespace,
 		ServiceAccountName: rnInfo.ServiceAccount,
 		BuildtemplateName:  buildTemplateName,
@@ -54,15 +54,15 @@ func NewBuild(rnInfo *RuntimeInfo, fn *runtimev1alpha1.Function, imageName strin
 	}
 }
 
-func GetBuildResource(build *Build, fn *runtimev1alpha1.Function) *buildv1alpha1.Build {
+func GetBuildResource(buildUtil *BuildUtil, fn *runtimev1alpha1.Function) *buildv1alpha1.Build {
 
 	args := []buildv1alpha1.ArgumentSpec{}
-	for k, v := range build.Args {
+	for k, v := range buildUtil.Args {
 		args = append(args, buildv1alpha1.ArgumentSpec{Name: k, Value: v})
 	}
 
 	envs := []corev1.EnvVar{}
-	for k, v := range build.Envs {
+	for k, v := range buildUtil.Envs {
 		envs = append(envs, corev1.EnvVar{Name: k, Value: v})
 	}
 
@@ -83,15 +83,15 @@ func GetBuildResource(build *Build, fn *runtimev1alpha1.Function) *buildv1alpha1
 	b := buildv1alpha1.Build{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "build.knative.dev/v1alpha1",
-			Kind:       "Build",
+			Kind:       "BuildUtil",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      build.Name,
-			Namespace: build.Namespace,
+			Name:      buildUtil.Name,
+			Namespace: buildUtil.Namespace,
 			Labels:    fn.Labels,
 		},
 		Spec: buildv1alpha1.BuildSpec{
-			ServiceAccountName: build.ServiceAccountName,
+			ServiceAccountName: buildUtil.ServiceAccountName,
 			Template: &buildv1alpha1.TemplateInstantiationSpec{
 				Name:      "function-kaniko",
 				Kind:      buildv1alpha1.BuildTemplateKind,
@@ -103,7 +103,7 @@ func GetBuildResource(build *Build, fn *runtimev1alpha1.Function) *buildv1alpha1
 	}
 
 	if b.Spec.Timeout == nil {
-		b.Spec.Timeout = &metav1.Duration{Duration: build.Timeout}
+		b.Spec.Timeout = &metav1.Duration{Duration: buildUtil.Timeout}
 	}
 
 	return &b

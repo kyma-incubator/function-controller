@@ -80,11 +80,11 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		return err
 	}
 
-	// Watch for changes to Build
-	err = c.Watch(&source.Kind{Type: &buildv1alpha1.Build{}}, &handler.EnqueueRequestForObject{})
-	if err != nil {
-		return err
-	}
+	// Watch for changes to BuildUtil
+	err = c.Watch(&source.Kind{Type: &buildv1alpha1.Build{}}, &handler.EnqueueRequestForOwner{
+		OwnerType:    &runtimev1alpha1.Function{},
+		IsController: true,
+	})
 
 	// TODO(user): Modify this to be the types you create
 	// Uncomment watch a Deployment created by Function - change this for objects you create
@@ -209,7 +209,10 @@ func (r *ReconcileFunction) Reconcile(request reconcile.Request) (reconcile.Resu
 		return reconcile.Result{}, err
 	}
 
-	if err := r.buildFunctionImage(rnInfo, fn, imageName); err != nil {
+	// Unique Build name
+	shortSha := functionSha[0:5]
+	buildName := fmt.Sprintf("%s-%s", fn.Name, shortSha)
+	if err := r.buildFunctionImage(rnInfo, fn, imageName, buildName); err != nil {
 		// status of the functon must change to error.
 		r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionError)
 
@@ -411,11 +414,11 @@ func (r *ReconcileFunction) getFunctionBuildTemplate(fn *runtimev1alpha1.Functio
 	return nil
 }
 
-func (r *ReconcileFunction) buildFunctionImage(rnInfo *runtimeUtil.RuntimeInfo, fn *runtimev1alpha1.Function, imageName string) error {
+func (r *ReconcileFunction) buildFunctionImage(rnInfo *runtimeUtil.RuntimeInfo, fn *runtimev1alpha1.Function, imageName string, buildName string) error {
 
-	// Create a new Build data structure
-	build := runtimeUtil.NewBuild(rnInfo, fn, imageName, buildTemplateName)
-	deployBuild := runtimeUtil.GetBuildResource(build, fn)
+	// Create a new BuildUtil data structure
+	buildUtil := runtimeUtil.NewBuildUtil(rnInfo, fn, imageName, buildTemplateName, buildName)
+	deployBuild := runtimeUtil.GetBuildResource(buildUtil, fn)
 
 	if err := controllerutil.SetControllerReference(fn, deployBuild, r.scheme); err != nil {
 		return err
@@ -425,7 +428,7 @@ func (r *ReconcileFunction) buildFunctionImage(rnInfo *runtimeUtil.RuntimeInfo, 
 	foundBuild := &buildv1alpha1.Build{}
 	err := r.Get(context.TODO(), types.NamespacedName{Name: deployBuild.Name, Namespace: deployBuild.Namespace}, foundBuild)
 	if err != nil && errors.IsNotFound(err) {
-		log.Info("Creating Knative Build", "namespace", deployBuild.Namespace, "name", deployBuild.Name)
+		log.Info("Creating Knative BuildUtil", "namespace", deployBuild.Namespace, "name", deployBuild.Name)
 		err = r.Create(context.TODO(), deployBuild)
 		if err != nil {
 			return err
@@ -441,16 +444,29 @@ func (r *ReconcileFunction) buildFunctionImage(rnInfo *runtimeUtil.RuntimeInfo, 
 		return nil
 
 	} else if err != nil {
-		log.Error(err, "Error while trying to create Knative Build", "namespace", deployBuild.Namespace, "name", deployBuild.Name)
+		log.Error(err, "Error while trying to create Knative BuildUtil", "namespace", deployBuild.Namespace, "name", deployBuild.Name)
 		return err
 	}
 
+	// Update BuildUtil object
 	if !reflect.DeepEqual(deployBuild.Spec, foundBuild.Spec) && !compareBuildImages(foundBuild, imageName) {
 
-		err := r.updateBuildFunctionImage(foundBuild, deployBuild, fn)
+		err := r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionUpdating)
 		if err != nil {
+			if errors.IsNotFound(err) {
+				return nil
+			}
 			return err
 		}
+
+		// create new BuildUtil with the new updated image
+		log.Info("Creating Knative BuildUtil", "namespace", deployBuild.Namespace, "name", deployBuild.Name)
+		err = r.Create(context.TODO(), deployBuild)
+		if err != nil && !errors.IsNotFound(err) {
+			return err
+		}
+
+		log.Info("Updated Knative BuildUtil", "namespace", deployBuild.Namespace, "name", deployBuild.Name)
 	}
 
 	return nil
@@ -469,7 +485,7 @@ func compareBuildImages(foundBuild *buildv1alpha1.Build, imageName string) bool 
 	return false
 }
 
-// Update Build object
+// Update BuildUtil object
 func (r *ReconcileFunction) updateBuildFunctionImage(foundBuild *buildv1alpha1.Build, deployBuild *buildv1alpha1.Build, fn *runtimev1alpha1.Function) error {
 
 	err := r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionUpdating)
@@ -480,22 +496,14 @@ func (r *ReconcileFunction) updateBuildFunctionImage(foundBuild *buildv1alpha1.B
 		return err
 	}
 
-	// Delete already existing Build with the old image-
-	// foundBuild = foundBuild.DeepCopy()
-	log.Info("Deleting Knative Build", "namespace", foundBuild.Namespace, "name", foundBuild.Name)
-	err = r.Delete(context.TODO(), foundBuild)
-	if err != nil && !errors.IsNotFound(err) {
-		return err
-	}
-
-	// create new Build with the new updated image
-	log.Info("Creating Knative Build", "namespace", deployBuild.Namespace, "name", deployBuild.Name)
+	// create new BuildUtil with the new updated image
+	log.Info("Creating Knative BuildUtil", "namespace", deployBuild.Namespace, "name", deployBuild.Name)
 	err = r.Create(context.TODO(), deployBuild)
 	if err != nil && !errors.IsNotFound(err) {
 		return err
 	}
 
-	log.Info("Updated Knative Build", "namespace", deployBuild.Namespace, "name", deployBuild.Name)
+	log.Info("Updated Knative BuildUtil", "namespace", deployBuild.Namespace, "name", deployBuild.Name)
 
 	return nil
 }
@@ -590,10 +598,10 @@ func (r *ReconcileFunction) getFunctionCondition(fn *runtimev1alpha1.Function) {
 	configurationsReady := false
 	routesReady := false
 
-	// Get the status of the Build and Build Pod
+	// Get the status of the BuildUtil and BuildUtil Pod
 	foundBuild := &buildv1alpha1.Build{}
 	if err := r.Get(context.TODO(), types.NamespacedName{Name: fn.Name, Namespace: fn.Namespace}, foundBuild); ignoreNotFound(err) != nil {
-		log.Error(err, "Error while trying to get the Knative Build for the Function Status", "namespace", fn.Namespace, "name", fn.Name)
+		log.Error(err, "Error while trying to get the Knative BuildUtil for the Function Status", "namespace", fn.Namespace, "name", fn.Name)
 		return
 	}
 
