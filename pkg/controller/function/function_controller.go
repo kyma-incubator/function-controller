@@ -209,7 +209,7 @@ func (r *ReconcileFunction) Reconcile(request reconcile.Request) (reconcile.Resu
 		return reconcile.Result{}, err
 	}
 
-	// Unique Build name
+	// Unique Build name base on function sha
 	shortSha := ""
 	if len(functionSha) > 10 {
 		shortSha = functionSha[0:10]
