@@ -237,9 +237,6 @@ func (r *ReconcileFunction) getFunctionControllerConfiguration(fnConfig *corev1.
 		return err
 	}
 
-	// TODO REMOVE LOG
-	log.Info("Function Controller's configuration found", "namespace", fnConfig.Namespace, "name", fnConfig.Name)
-
 	return nil
 }
 
@@ -320,7 +317,6 @@ func (r *ReconcileFunction) updateFunctionConfigMap(foundCm *corev1.ConfigMap, d
 
 	if !reflect.DeepEqual(deployCm.Data, foundCm.Data) {
 		foundCm.Data = deployCm.Data
-		// TODO: why is this required ??
 		foundCm.TypeMeta = deployCm.TypeMeta
 		foundCm.ObjectMeta = deployCm.ObjectMeta
 		log.Info("Updating Function's ConfigMap", "namespace", deployCm.Namespace, "name", deployCm.Name)
@@ -450,15 +446,7 @@ func (r *ReconcileFunction) buildFunctionImage(rnInfo *runtimeUtil.RuntimeInfo, 
 	}
 
 	if !reflect.DeepEqual(deployBuild.Spec, foundBuild.Spec) && !compareBuildImages(foundBuild, imageName) {
-		// TODO Investigate
-		// Build is not being updated. Changing the status and the spec is not triggering the creation of a new Build Pod.
-		// The Build Pod is in state completed once the image is pushed. This state won't change a new Pod needs to be created.
-		// It should be created once the status of the Build is updated to Status{}.
-		// The Build Controller looks for Status.Cluster.PodName and if it is empty the creates a new Pod.
-		// The code bellow delete the old Pod and update the Build object with the new spec and status empty.
-		// However this is not working as expected.
 
-		// TODO - WORKAROUND: The function bellow delete, create and get a new Build object with the new spec. It is not the desire solution.
 		err := r.updateBuildFunctionImage(foundBuild, deployBuild, fn)
 		if err != nil {
 			return err
