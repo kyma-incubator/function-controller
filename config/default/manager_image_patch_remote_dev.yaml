@@ -17,4 +17,4 @@ spec:
         # gets changed by sed command when running `docker-build`
         - image: ""
           name: manager
-          imagePullPolicy: Never
+          imagePullPolicy: Always

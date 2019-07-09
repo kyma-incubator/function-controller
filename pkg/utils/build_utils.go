@@ -10,60 +10,26 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type BuildUtil struct {
-	Name               string
-	Namespace          string
-	ServiceAccountName string
-	BuildtemplateName  string
-	Args               map[string]string
-	Envs               map[string]string
-	Timeout            time.Duration
-}
-
-var dockerFileName = map[string]string{
-	"nodejs6": "dockerfile-nodejs-6",
-	"nodejs8": "dockerfile-nodejs-8",
-}
-
 var buildTimeout = os.Getenv("BUILD_TIMEOUT")
 
 var defaultMode = int32(420)
 
-func NewBuildUtil(rnInfo *RuntimeInfo, fn *runtimev1alpha1.Function, imageName string, buildTemplateName string, buildName string) *BuildUtil {
+func GetBuildResource(rnInfo *RuntimeInfo, fn *runtimev1alpha1.Function, imageName string, buildName string) *buildv1alpha1.Build {
 
-	argsMap := make(map[string]string)
-	argsMap["IMAGE"] = imageName
-	argsMap["DOCKERFILE"] = dockerFileName[fn.Spec.Runtime]
+	args := []buildv1alpha1.ArgumentSpec{}
+	args = append(args, buildv1alpha1.ArgumentSpec{Name: "IMAGE", Value: imageName})
 
-	envMap := make(map[string]string)
+	for _, rt := range rnInfo.AvailableRuntimes {
+		if rt.ID == fn.Spec.Runtime {
+			args = append(args, buildv1alpha1.ArgumentSpec{Name: "DOCKERFILE", Value: rt.DockerFileName})
+		}
+	}
+
+	envs := []corev1.EnvVar{}
 
 	timeout, err := time.ParseDuration(buildTimeout)
 	if err != nil {
 		timeout = 30 * time.Minute
-	}
-
-	// TODO: do we need the extra build struct or not ?
-	return &BuildUtil{
-		Name:               buildName,
-		Namespace:          fn.Namespace,
-		ServiceAccountName: rnInfo.ServiceAccount,
-		BuildtemplateName:  buildTemplateName,
-		Args:               argsMap,
-		Envs:               envMap,
-		Timeout:            timeout,
-	}
-}
-
-func GetBuildResource(buildUtil *BuildUtil, fn *runtimev1alpha1.Function) *buildv1alpha1.Build {
-
-	args := []buildv1alpha1.ArgumentSpec{}
-	for k, v := range buildUtil.Args {
-		args = append(args, buildv1alpha1.ArgumentSpec{Name: k, Value: v})
-	}
-
-	envs := []corev1.EnvVar{}
-	for k, v := range buildUtil.Envs {
-		envs = append(envs, corev1.EnvVar{Name: k, Value: v})
 	}
 
 	vols := []corev1.Volume{
@@ -86,12 +52,12 @@ func GetBuildResource(buildUtil *BuildUtil, fn *runtimev1alpha1.Function) *build
 			Kind:       "BuildUtil",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      buildUtil.Name,
-			Namespace: buildUtil.Namespace,
+			Name:      buildName,
+			Namespace: fn.Namespace,
 			Labels:    fn.Labels,
 		},
 		Spec: buildv1alpha1.BuildSpec{
-			ServiceAccountName: buildUtil.ServiceAccountName,
+			ServiceAccountName: rnInfo.ServiceAccount,
 			Template: &buildv1alpha1.TemplateInstantiationSpec{
 				Name:      "function-kaniko",
 				Kind:      buildv1alpha1.BuildTemplateKind,
@@ -103,7 +69,7 @@ func GetBuildResource(buildUtil *BuildUtil, fn *runtimev1alpha1.Function) *build
 	}
 
 	if b.Spec.Timeout == nil {
-		b.Spec.Timeout = &metav1.Duration{Duration: buildUtil.Timeout}
+		b.Spec.Timeout = &metav1.Duration{Duration: timeout}
 	}
 
 	return &b

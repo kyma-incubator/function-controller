@@ -55,7 +55,7 @@ dep:
 docker-build: dep fmt
 	docker build . -t ${IMG}
 	@echo "updating kustomize image patch file for manager resource"
-	sed -i'' -e 's@image: .*@image: '"${IMG}"'@' ./config/default/manager_image_patch.yaml ./config/default/manager_image_patch_dev.yaml
+	sed -i'' -e 's@image: .*@image: '"${IMG}"'@' ./config/default/manager_image_patch_remote_dev.yaml ./config/default/manager_image_patch_local_dev.yaml
 
 # Push the docker image
 .PHONY: docker-push
