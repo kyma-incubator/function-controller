@@ -42,7 +42,6 @@ func NewBuildUtil(rnInfo *RuntimeInfo, fn *runtimev1alpha1.Function, imageName s
 		timeout = 30 * time.Minute
 	}
 
-	// TODO: do we need the extra build struct or not ?
 	return &BuildUtil{
 		Name:               buildName,
 		Namespace:          fn.Namespace,
