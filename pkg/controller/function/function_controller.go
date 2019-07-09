@@ -210,7 +210,12 @@ func (r *ReconcileFunction) Reconcile(request reconcile.Request) (reconcile.Resu
 	}
 
 	// Unique Build name
-	shortSha := functionSha[0:5]
+	shortSha := ""
+	if len(functionSha) > 10 {
+		shortSha = functionSha[0:10]
+	} else if len(functionSha) > 0 && len(functionSha) < 10 {
+		shortSha = functionSha
+	}
 	buildName := fmt.Sprintf("%s-%s", fn.Name, shortSha)
 	if err := r.buildFunctionImage(rnInfo, fn, imageName, buildName); err != nil {
 		// status of the functon must change to error.
