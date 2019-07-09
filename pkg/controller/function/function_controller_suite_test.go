@@ -79,8 +79,6 @@ func SetupTestReconcile(inner reconcile.Reconciler) (reconcile.Reconciler, chan 
 			fmt.Printf("Reconciler encountered error: %v", err)
 			errors <- err
 		}
-		// ensure no errors occur in reconciler
-		// g.Expect(err).Should(gomega.Succeed())
 		requests <- req
 		return result, err
 	})
