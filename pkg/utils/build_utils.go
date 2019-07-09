@@ -49,7 +49,7 @@ func GetBuildResource(rnInfo *RuntimeInfo, fn *runtimev1alpha1.Function, imageNa
 	b := buildv1alpha1.Build{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "build.knative.dev/v1alpha1",
-			Kind:       "BuildUtil",
+			Kind:       "Build",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      buildName,
