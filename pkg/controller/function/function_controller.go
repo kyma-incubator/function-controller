@@ -177,7 +177,9 @@ func (r *ReconcileFunction) Reconcile(request reconcile.Request) (reconcile.Resu
 	deployCm := &corev1.ConfigMap{}
 	_, err = r.createFunctionConfigMap(foundCm, deployCm, fn)
 	if err != nil {
-		// status of the functon must change to error.
+		if errors.IsNotFound(err) {
+			return reconcile.Result{}, nil
+		}
 		r.updateFunctionStatus(fn, runtimev1alpha1.FunctionConditionError)
 
 		log.Error(err, "function configmap can't be created. The function could have been deleted.", "namespace", deployCm.Namespace, "name", deployCm.Name)
