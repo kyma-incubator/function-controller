@@ -123,7 +123,7 @@ kubectl apply --filename https://github.com/knative/serving/releases/download/v0
 
 #### Manager running locally
 
-modify config/config.yaml to include your docker.io credentials (base64 encoded) and update the dockerregistry value to your docker.io username
+modify config/config.yaml to include your docker.io credentials (base64 encoded) and update the docker registry value to your docker.io username
 
 Apply the configuration
 
