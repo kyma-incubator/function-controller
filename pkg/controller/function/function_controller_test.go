@@ -150,11 +150,11 @@ func TestReconcile(t *testing.T) {
 	// ensure container environment variables are correct
 	g.Expect(service.Spec.ConfigurationSpec.Template.Spec.RevisionSpec.PodSpec.Containers[0].Env).To(gomega.Equal(expectedEnv))
 
-	// Unique Build name
+	// Unique Build name base on function sha
 	hash := sha256.New()
 	hash.Write([]byte(functionConfigMap.Data["handler.js"] + functionConfigMap.Data["package.json"]))
 	functionSha := fmt.Sprintf("%x", hash.Sum(nil))
-	shortSha := functionSha[0:5]
+	shortSha := functionSha[0:10]
 	buildName := fmt.Sprintf("%s-%s", fnCreated.Name, shortSha)
 
 	// get the build object

@@ -148,8 +148,6 @@ func (r *ReconcileFunction) Reconcile(request reconcile.Request) (reconcile.Resu
 	err := r.getFunctionInstance(request, fn)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			// Object not found, return.  Created objects are automatically garbage collected.
-			// For additional cleanup logic use finalizers.
 			return reconcile.Result{}, nil
 		}
 		// status of the functon must change to error.
